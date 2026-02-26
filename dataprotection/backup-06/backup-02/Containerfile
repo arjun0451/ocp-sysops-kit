@@ -1,0 +1,14 @@
+FROM registry.access.redhat.com/ubi9/nodejs-18
+
+WORKDIR /opt/app-root/src
+
+COPY package*.json ./
+RUN npm install
+
+COPY server.js .
+
+USER 1001
+
+EXPOSE 8080
+
+CMD ["node", "server.js"]
