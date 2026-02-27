@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bck01-service
+spec:
+  selector:
+    app: bck01-app
+  ports:
+  - port: 80
+    targetPort: 8080

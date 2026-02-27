@@ -1,0 +1,10 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: bck02-route
+spec:
+  to:
+    kind: Service
+    name: bck02-service
+  port:
+    targetPort: 8080

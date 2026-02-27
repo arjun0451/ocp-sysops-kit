@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bck03-app
+  labels:
+    app: bck03-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bck03-app
+  template:
+    metadata:
+      labels:
+        app: bck03-app
+    spec:
+      containers:
+        - name: app
+          image: quay.io/<your_repo>/bck03-app:v1
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - mountPath: /data1
+              name: pvc1
+            - mountPath: /data2
+              name: pvc2
+      volumes:
+        - name: pvc1
+          persistentVolumeClaim:
+            claimName: bck03-pvc-data
+        - name: pvc2
+          persistentVolumeClaim:
+            claimName: bck03-pvc-logs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bck03-service
+spec:
+  selector:
+    app: bck03-app
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: bck03-route
+spec:
+  to:
+    kind: Service
+    name: bck03-service
+  port:
+    targetPort: 8080

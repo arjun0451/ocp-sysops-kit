@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bck01-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bck01-app
+  template:
+    metadata:
+      labels:
+        app: bck01-app
+    spec:
+      containers:
+      - name: app
+        image: quay.io/<your_repo>/bck01-app:v1
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: banner-volume
+          mountPath: /config
+      volumes:
+      - name: banner-volume
+        configMap:
+          name: bck01-banner

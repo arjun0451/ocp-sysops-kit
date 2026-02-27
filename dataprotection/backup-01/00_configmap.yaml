@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bck01-banner
+data:
+  banner.txt: |
+    🚀 Welcome to OpenShift Backup Testing - BCK-01
