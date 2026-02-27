@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: bck05-app
+spec:
+  serviceName: bck05-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bck05-app
+  template:
+    metadata:
+      labels:
+        app: bck05-app
+    spec:
+      containers:
+        - name: app
+          image: quay.io/<your_repo>/stateful-app:v1
+          ports:
+            - containerPort: 8080
+          env:
+            - name: BANNER
+              valueFrom:
+                configMapKeyRef:
+                  name: stateful-app-config
+                  key: BANNER
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: <block-storage-class>

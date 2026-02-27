@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: bck06-app
+spec:
+  serviceName: bck06-service
+  replicas: 3
+  selector:
+    matchLabels:
+      app: bck06-app
+  template:
+    metadata:
+      labels:
+        app: bck06-app
+    spec:
+      containers:
+        - name: app
+          image: quay.io/<your_repo>/stateful-app:v1
+          ports:
+            - containerPort: 8080
+          env:
+            - name: BANNER
+              valueFrom:
+                configMapKeyRef:
+                  name: stateful-app-config
+                  key: BANNER
+          volumeMounts:
+            - name: rwx-data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: rwx-data
+      spec:
+        accessModes: ["ReadWriteMany"]
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: <rwx-storage-class>

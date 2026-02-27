@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bck04-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: bck04-app
+  template:
+    metadata:
+      labels:
+        app: bck04-app
+    spec:
+      containers:
+        - name: app
+          image: quay.io/<your_repo>/bck04-app:v1
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - mountPath: /data
+              name: rwx-storage
+      volumes:
+        - name: rwx-storage
+          persistentVolumeClaim:
+            claimName: bck04-rwx-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bck04-service
+spec:
+  selector:
+    app: bck04-app
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: bck04-route
+spec:
+  to:
+    kind: Service
+    name: bck04-service
+  port:
+    targetPort: 8080

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bck06-service
+spec:
+  selector:
+    app: bck06-app
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: bck06-route
+spec:
+  to:
+    kind: Service
+    name: bck06-service
+  port:
+    targetPort: 8080
