@@ -1,3 +1,223 @@
 ## Exporting Kubeconfig
 export KUBECONFIG=/etc/kubernetes/static-pod-resources/kube-apiserver-certs/secrets/node-kubeconfigs/lb-int.kubeconfig
 export KUBECONFIG=/etc/kubernetes/static-pod-resources/kube-apiserver-certs/secrets/node-kubeconfigs/lb-int.kubeconfig
+
+##Fetch the Node Kubelet Config 
+oc get --raw /api/v1/nodes/<NodeName>/proxy/configz | jq
+
+## Checking MCP status on each node 
+ oc get nodes -ojson | jq -r '"Node | Current MC | Desired MC | MC State",(.items| sort_by(.metadata.name,.metadata.annotations."machineconfiguration.openshift.io/desiredConfig",.metadata.annotations."machineconfiguration.openshift.io/currentConfig") | .[]  | "\(.metadata.name) | \(.metadata.annotations."machineconfiguration.openshift.io/currentConfig") | \(.metadata.annotations."machineconfiguration.openshift.io/desiredConfig") | \(.metadata.annotations."machineconfiguration.openshift.io/state")")' | column -t -s'|'
+ 
+ oc get nodes -ojson | jq -r '"Node | Current MC | Desired MC | MC State | Match Status", (.items | sort_by(.metadata.name, .metadata.annotations."machineconfiguration.openshift.io/desiredConfig", .metadata.annotations."machineconfiguration.openshift.io/currentConfig") | .[] | "\(.metadata.name) | \(.metadata.annotations."machineconfiguration.openshift.io/currentConfig") | \(.metadata.annotations."machineconfiguration.openshift.io/desiredConfig") | \(.metadata.annotations."machineconfiguration.openshift.io/state") | \((if .metadata.annotations."machineconfiguration.openshift.io/currentConfig" == .metadata.annotations."machineconfiguration.openshift.io/desiredConfig" then "Match" else "Mismatch" end))")' | column -t -s'|'
+
+### patch the Node with required MC Version
+$ oc patch node $node_name --type merge --patch "{\"metadata\": {\"annotations\": {\"machineconfiguration.openshift.io/currentConfig\": \"${new_value}\"}}}"
+$ oc patch node $node_name  --type merge --patch "{\"metadata\": {\"annotations\": {\"machineconfiguration.openshift.io/desiredConfig\": \"${new_value}\"}}}"
+$ oc patch node $node_name  --type merge --patch '{"metadata": {"annotations": {"machineconfiguration.openshift.io/reason\": \"\"}}}'
+$oc patch node $node_name  --type merge --patch '{"metadata": {"annotations\": {\"machineconfiguration.openshift.io/state\": \"Done\"}}}'
+
+## Manually recovering the lost MC from node and applying the new version to machineconfigpool
+
+cat /etc/machine-config-daemon/currentconfig | jq > /tmp/mc.yaml
+export MC=$(oc get mc |grep rendered-master| awk '{print $1}')
+export UID=$(oc get mc "$MC" -o jsonpath='{.metadata.ownerReferences[0].uid}')
+sed -i 's/"uid": ""/"uid": "$UID"/g' /tmp/mc.yaml
+oc apply -f /tmp/mc.yaml
+
+## Force MCP to take effect
+
+oc debug node/$node_name -- touch /host/run/machine-config-daemon-force
+
+## Pause MCP 
+
+oc patch --type=merge --patch='{"spec":{"paused":true}}' machineconfigpool/master
+oc patch --type=merge --patch='{"spec":{"paused":true}}' machineconfigpool/worker
+
+### command to print the certificate chain 
+awk 'BEGIN {c=0} /-----BEGIN CERTIFICATE-----/ {c++} {print > "cert" c ".pem"}' ca.crt && for cert in cert*.pem; do echo "Details for $cert:"; openssl x509 -in $cert -noout -subject -issuer -serial -dates -fingerprint; echo ""; done && rm cert*.pem
+ 
+### Print the resource use per pod on the node level
+oc get pods --all-namespaces -o json | jq -r '
+  ["NAMESPACE", "POD NAME", "CONTAINER", "CPU REQUESTS", "MEMORY REQUESTS", "CPU LIMITS", "MEMORY LIMITS"],
+  ["---------", "--------", "---------", "------------", "---------------", "----------", "------------"],
+  (.items[] | select(.spec.nodeName=="ip-172-20-1-180.ap-southeast-1.compute.internal") | 
+    .metadata.namespace as $namespace | 
+    .metadata.name as $pod | 
+    .spec.containers[] | 
+    [$namespace, $pod, .name, (.resources.requests.cpu // "-"), (.resources.requests.memory // "-"), (.resources.limits.cpu // "-"), (.resources.limits.memory // "-")]
+  ) | @tsv' | column -t -s $'\t'
+
+## Across all the pods in the cluster
+
+oc get pods --all-namespaces -o json | jq -r '
+  ["NAMESPACE", "POD NAME", "CONTAINER", "CPU REQUESTS", "MEMORY REQUESTS", "CPU LIMITS", "MEMORY LIMITS"],
+  ["---------", "--------", "---------", "------------", "---------------", "----------", "------------"],
+  (.items[] | 
+    .metadata.namespace as $namespace | 
+    .metadata.name as $pod | 
+    .spec.containers[] | 
+    [$namespace, $pod, .name, 
+      (.resources.requests.cpu // "-"), 
+      (.resources.requests.memory // "-"), 
+      (.resources.limits.cpu // "-"), 
+      (.resources.limits.memory // "-")
+    ]
+  ) | @tsv' | column -t -s $'\t'
+
+## Check the pods without limits or request set in the cluster
+oc get pods --all-namespaces -o json | jq -r '
+  ["NAMESPACE", "POD NAME", "CONTAINER", "CPU REQUESTS", "MEMORY REQUESTS", "CPU LIMITS", "MEMORY LIMITS"],
+  ["---------", "--------", "---------", "------------", "---------------", "----------", "------------"],
+  (.items[] | 
+    .metadata.namespace as $namespace | 
+    .metadata.name as $pod | 
+    .spec.containers[] | 
+    select(
+      (.resources.requests.cpu // null) == null or 
+      (.resources.requests.memory // null) == null or 
+      (.resources.limits.cpu // null) == null or 
+      (.resources.limits.memory // null) == null
+    ) | 
+    [$namespace, $pod, .name, 
+      (.resources.requests.cpu // "-"), 
+      (.resources.requests.memory // "-"), 
+      (.resources.limits.cpu // "-"), 
+      (.resources.limits.memory // "-")
+    ]
+  ) | @tsv' | column -t -s $'\t'
+  
+## Including the Imagepath and imagepullpolicy 
+
+oc get pods --all-namespaces -o json | jq -r '
+  ["NAMESPACE", "POD NAME", "CONTAINER", "CPU REQUESTS", "MEMORY REQUESTS", "CPU LIMITS", "MEMORY LIMITS", "IMAGE", "IMAGE PULL POLICY"],
+  ["---------", "--------", "---------", "------------", "---------------", "----------", "------------", "-----", "----------------"],
+  (.items[] | 
+    .metadata.namespace as $namespace | 
+    .metadata.name as $pod | 
+    .spec.containers[] | 
+    [$namespace, $pod, .name, 
+      (.resources.requests.cpu // "-"), 
+      (.resources.requests.memory // "-"), 
+      (.resources.limits.cpu // "-"), 
+      (.resources.limits.memory // "-"),
+      .image,
+      .imagePullPolicy
+    ]
+  ) | @tsv' | column -t -s $'\t'
+
+## Command to get node capacity
+oc get nodes -o json | jq -r '.items[] | "\(.metadata.name) \(.status.capacity.cpu) \(.status.capacity.memory) \(.status.allocatable.cpu) \(.status.allocatable.memory)"' | column -t
+
+##To check the issuer and validity of the certs inside the CA bundle ( 292 days )
+oc get cm -n openshift-kube-apiserver-operator kube-apiserver-to-kubelet-client-ca -ojsonpath='{.data.ca-bundle\.crt}'| openssl crl2pkcs7 -nocrl -certfile /dev/stdin | openssl pkcs7 -print_certs -text | egrep -A4 Issuer
+
+## Check the Kubeconfig-ceritificate expiry
+oc get cm admin-kubeconfig-client-ca -ojsonpath='{.data.ca-bundle\.crt}'
+
+## Cloud credintial operator installation mode 
+oc get cloudcredentials.operator.openshift.io cluster
+
+## There are ~135 images that make up the core OCP 4.8 payload, not all will be used in a given cluster.
+oc adm release info 4.8.0 --pullspecs -ojson | jq '.references.spec.tags[].name' | wc -l
+
+## find the kubelet and crio logs 
+sudo journalctl -u kubelet --since "YYYY-MM-DD HH:MM:SS" --until "YYYY-MM-DD HH:MM:SS" | grep <pod-name>
+sudo journalctl -u crio --since "YYYY-MM-DD HH:MM:SS" --until "YYYY-MM-DD HH:MM:SS" | grep <pod-name>
+sudo journalctl -b -f -u bootkube.service
+sudo journalctl -b -f -u bootkube.service -u release-image.service
+sudo journalctl -b -f -u kubelet.service -u crio.service
+
+## Find the ETCD Object count 
+export ETCD_POD_NAME=$(oc get pods -n openshift-etcd -l app=etcd --field-selector="status.phase==Running" -o jsonpath="{.items[0].metadata.name}")
+oc exec -n openshift-etcd ${ETCD_POD_NAME} -- bash -c "etcdctl get / --prefix --keys-only | sed '/^$/d' | cut -d/ -f3 | sort | uniq -c | sort -rn"
+##This command will retrieve all keys from the etcd database, including the number of occurrences and the size by object type, ordered by size.
+oc exec -n openshift-etcd -c etcdctl ${ETCD_POD_NAME} -- sh -c "etcdctl get / --prefix --keys-only  | grep -oE '^/[a-z|.]+/[a-z|.|8]*' | sort | uniq -c | sort -rn" | while read KEY; do printf "$KEY\t" && oc exec -n openshift-etcd ${ETCD_POD_NAME} -c etcdctl -- etcdctl get ${KEY##* } --prefix --write-out=json | jq '[.kvs[].value | length] | add ' | numfmt --to=iec ; done | sort -k3 -hr | column -t
+
+## sort resource by memory or cpu
+oc adm top pod --sort-by=memory -n test
+oc adm top pod --sort-by=cpu -n test
+
+## oc autocomplection
+ yum -y install bash-completion
+ oc completion bash >>/etc/bash_completion.d/oc_completion
+
+##redhat labs
+mkdir -p ~/.bash_completion.d
+oc completion bash > ~/.bash_completion.d/oc_completion
+echo 'if [ -f ~/.bash_completion.d/oc_completion ]; then . ~/.bash_completion.d/oc_completion; fi' >> ~/.bashrc
+source ~/.bashrc
+
+## Delete 4 days older MC 
+
+for MC in $(oc get mc -o json | jq -r '
+  .items[] |
+  select(.metadata.creationTimestamp | .!=null and (fromdateiso8601 <= '$(date --date='-5day' +%s)')) |
+  select(.metadata.name | startswith("rendered")) |
+  select(.metadata.ownerReferences[].name == "master") |
+  .metadata.name
+'); do
+  echo $MC;
+  oc delete mc $MC;
+done
+
+##oc Mirror command to pull the image in the disconnected cluster
+oc mirror --config=./imageset-config.yaml file:// --dest-skip-tls --contionue-on-error
+oc mirror --from=mirror_seq1_000000.tar docker://destinationMirror:5000/ocpv41422 --dest-skip-tls
+
+##Openshift 4.15 and above oc-mirror command
+  # First-Time Mirroring:
+  ./oc-mirror --config=./imageset-config-logging.yaml docker://asdavas.dkr.ecr.ap-southeast-1.amazonaws.com/clusterlogging41518 --max-per-registry 1   --dest-skip-tls --rebuild-catalogs
+ 
+  #If Re-Mirroring (same config, previously run):
+ ./oc-mirror --config=./imageset-config-logging.yaml docker://asdavas.dkr.ecr.ap-southeast-1.amazonaws.com/clusterlogging41518 --max-per-registry 1   --dest-skip-tls --ignore-history --skip-metadata-check --rebuild-catalogs
+
+## podman save and load images
+podman save -o imagenametosave.tar
+podman load -i imagenametosave.tar 
+podman tag imageid imagepath:latest
+podman push imagepath:latest
+
+## Ignitation File recovery
+oc extract -n openshift-machine-api secret/master-user-data --keys=userData --to=-
+oc extract -n openshift-machine-api secret/worker-user-data --keys=userData --to=-
+
+## Check the Node reboot timestamp 
+for node in $(oc get nodes -o name | awk -F'/' '{print $2}'); do oc debug node/$node -- chroot /host uptime -s | tail -n 1; done
+
+## Print the Container,initcontainer and reason restart (refer exit-code doc)
+## https://github.com/anveshmuppeda/kubernetes/tree/main/troubleshoot
+
+(
+  echo -e "PodName\tContainerType\tContainerName\tRestartCount\tExitCode"
+  oc get pods -n <namespace> -o json | jq -r '
+    .items[] | 
+    .metadata.name as $podname |
+    (
+      [(.status.containerStatuses // [])[] | 
+        [$podname, "Container", .name, (.restartCount // 0), (.lastState.terminated.exitCode // "N/A")]
+      ] + 
+      [(.status.initContainerStatuses // [])[] | 
+        [$podname, "InitContainer", .name, (.restartCount // 0), (.lastState.terminated.exitCode // "N/A")]
+      ]
+    )[] | @tsv'
+) | column -t
+
+###Print the Pods and Presistent volume,size and class all together
+
+kubectl get pods -n namespace -o json | jq -r '
+  .items[] as $pod |
+  ($pod.spec.volumes[]? | select(has("persistentVolumeClaim")) | .persistentVolumeClaim.claimName) as $pvc |
+  ($pod.spec.containers[].name) as $container |
+  [$pod.metadata.namespace, $pod.metadata.name, $container, ($pvc // "NA")] |
+  @tsv' | while IFS=$'\t' read -r ns pod container pvc; do     if [ "$pvc" != "NA" ]; then       size=$(kubectl get pvc "$pvc" -n "$ns" -o jsonpath='{.spec.resources.requests.storage}');       sc=$(kubectl get pvc "$pvc" -n "$ns" -o jsonpath='{.spec.storageClassName}');     else       size="NA";       sc="NA";     fi;     echo -e "$ns\t$pod\t$container\t$pvc\t$size\t$sc";   done | column -t -N "NAMESPACE,POD_NAME,CONTAINER_NAME,PERSISTENT_VOLUME,STORAGE_SIZE,STORAGE_CLASS"
+
+## Must gather reduce the log size
+find . -type f -name "*.log"
+find . -type f -name "*.log" -exec rm -f {} +
+find . -type f \( -name "*.log" -o -name "*.log.*" \) -exec ls -lh {} +
+find . -type f \( -name "*.log" -o -name "*.log.*" \) -exec rm -f {} +
+
+## Print the Federated Metrics from backend
+TOKEN=$(oc whoami -t)
+HOST=$(oc -n openshift-monitoring get route prometheus-k8s-federate -ojsonpath={.status.ingress[].host})
+curl -G -k -H "Authorization: Bearer $TOKEN" https://$HOST/federate --data-urlencode 'match[]={job!=""}'  | grep openshift_sdn_pod_ip
