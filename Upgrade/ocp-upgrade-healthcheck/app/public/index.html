@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OCP Upgrade Health Check Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700&family=Red+Hat+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ──────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Variables ──────────────────────────────────────────────────────────────── */
+:root {
+  --rh-red:        #ee0000;
+  --rh-red-dk:     #c00000;
+  --rh-dark:       #1b1d21;
+  --rh-gray-7:     #3c3f42;
+  --rh-gray-5:     #6a6e73;
+  --rh-gray-3:     #b8bbbe;
+  --rh-gray-1:     #f0f0f0;
+  --white:         #ffffff;
+  --border:        #d2d2d2;
+  --border-dk:     #b8bbbe;
+  --text:          #1b1d21;
+  --text-muted:    #6a6e73;
+  --bg-page:       #f4f4f4;
+  --bg-panel:      #ffffff;
+  --bg-alt:        #f8f8f8;
+
+  --pass-text:     #1e4620;
+  --pass-bg:       #f2faf3;
+  --pass-border:   #b7debb;
+  --warn-text:     #5e3d00;
+  --warn-bg:       #fff8e6;
+  --warn-border:   #f5d88a;
+  --fail-text:     #a30000;
+  --fail-bg:       #fff2f2;
+  --fail-border:   #f5b8b8;
+  --skip-text:     #6a6e73;
+  --skip-bg:       #f8f8f8;
+  --skip-border:   #d2d2d2;
+  --run-text:      #003d7a;
+  --run-bg:        #edf4ff;
+  --run-border:    #bad3f5;
+
+  --font:          'Red Hat Display', 'Helvetica Neue', Arial, sans-serif;
+  --mono:          'Red Hat Mono', 'Courier New', monospace;
+  --r:             4px;
+  --sidebar:       224px;
+  --rpanel:        256px;
+}
+
+/* ── Base ───────────────────────────────────────────────────────────────────── */
+html, body { height: 100%; background: var(--bg-page); color: var(--text); font-family: var(--font); font-size: 13px; overflow: hidden; }
+
+/* ── Layout grid ─────────────────────────────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-rows: 52px 1fr;
+  grid-template-columns: var(--sidebar) 1fr var(--rpanel);
+  height: 100vh;
+  gap: 0;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────────── */
+.header {
+  grid-column: 1 / -1;
+  background: var(--rh-dark);
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 0;
+  border-bottom: 3px solid var(--rh-red);
+  flex-shrink: 0;
+}
+
+.header-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.header-ver {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--rh-gray-3);
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 1px solid var(--rh-gray-7);
+}
+
+.header-spacer { flex: 1; }
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--rh-gray-3);
+}
+
+/* Run status pill */
+.run-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--rh-gray-7);
+  background: transparent;
+  color: var(--rh-gray-3);
+  white-space: nowrap;
+}
+.run-pill.running { background: #0c2e0c; border-color: #2a5e2a; color: #7fd17f; }
+.run-pill.pass    { background: #0c2e10; border-color: #1f5e24; color: #7fd17f; }
+.run-pill.warn    { background: #332500; border-color: #5e4000; color: #f5c518; }
+.run-pill.fail    { background: #330000; border-color: #6e0000; color: #ff7070; }
+
+.pill-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────────── */
+.sidebar {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-head {
+  padding: 10px 14px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-alt);
+}
+
+.sidebar-body { overflow-y: auto; flex: 1; }
+
+/* Check item */
+.check-item {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: center;
+  padding: 0;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--rh-gray-1);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 34px;
+}
+
+.check-item:hover { background: var(--rh-gray-1); color: var(--text); }
+
+.check-item.active {
+  border-left-color: var(--rh-red);
+  background: var(--bg-panel);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Status variants */
+.check-item.pass  { color: var(--pass-text); }
+.check-item.warn  { color: var(--warn-text); }
+.check-item.fail  { color: var(--fail-text); background: var(--fail-bg); }
+.check-item.fail:hover { background: #ffe8e8; }
+.check-item.skip  { color: var(--rh-gray-3); }
+.check-item.running { color: var(--run-text); background: var(--run-bg); }
+
+.check-item.fail.active  { border-left-color: var(--rh-red); }
+.check-item.warn.active  { border-left-color: #c07a00; }
+.check-item.pass.active  { border-left-color: var(--pass-text); }
+.check-item.running.active { border-left-color: var(--rh-red); }
+
+/* Badge column */
+.check-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  border-right: 1px solid var(--border);
+  color: inherit;
+  background: rgba(0,0,0,0.03);
+  padding: 4px 2px;
+  min-height: 34px;
+}
+
+.check-item.pass  .check-badge { background: var(--pass-bg); color: var(--pass-text); border-color: var(--pass-border); }
+.check-item.fail  .check-badge { background: var(--fail-bg); color: var(--fail-text); border-color: var(--fail-border); }
+.check-item.warn  .check-badge { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-border); }
+.check-item.skip  .check-badge { background: var(--skip-bg); color: var(--skip-text); border-color: var(--skip-border); }
+.check-item.running .check-badge { background: var(--run-bg); color: var(--run-text); border-color: var(--run-border); }
+
+.check-label {
+  padding: 6px 10px 6px 10px;
+  line-height: 1.35;
+}
+
+/* Sidebar summary section */
+.sidebar-summary {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+  background: var(--bg-alt);
+  font-size: 11px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.ss-box {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.ss-val {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-muted);
+  line-height: 1;
+}
+.ss-val.fail { color: var(--fail-text); }
+.ss-val.warn { color: var(--warn-text); }
+.ss-val.ok   { color: var(--pass-text); }
+
+.ss-key {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Main terminal pane ──────────────────────────────────────────────────────── */
+.main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--white);
+  border-right: 1px solid var(--border);
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+  flex-shrink: 0;
+}
+
+.t-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.autoscroll-lbl {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.autoscroll-lbl input { accent-color: var(--rh-red); cursor: pointer; }
+
+/* Buttons */
+.btn {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--r);
+  border: 1px solid transparent;
+  cursor: pointer;
+  padding: 6px 16px;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.btn-run {
+  background: var(--rh-red);
+  color: var(--white);
+  border-color: var(--rh-red-dk);
+}
+.btn-run:hover:not(:disabled)    { background: var(--rh-red-dk); }
+.btn-run:disabled                { background: var(--rh-gray-3); border-color: var(--rh-gray-3); color: var(--rh-gray-5); cursor: not-allowed; }
+
+.btn-stop {
+  background: var(--white);
+  color: var(--fail-text);
+  border-color: var(--fail-border);
+}
+.btn-stop:hover:not(:disabled)   { background: var(--fail-bg); }
+.btn-stop:disabled               { opacity: 0.4; cursor: not-allowed; }
+
+.btn-ghost {
+  background: var(--white);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+.btn-ghost:hover:not(:disabled)  { background: var(--rh-gray-1); color: var(--text); }
+
+.btn-sm { padding: 4px 12px; font-size: 11px; }
+
+/* Progress bar */
+.prog-track {
+  height: 2px;
+  background: var(--rh-gray-1);
+  flex-shrink: 0;
+}
+.prog-fill {
+  height: 100%;
+  background: var(--rh-red);
+  width: 0;
+  transition: width 0.5s ease;
+}
+
+/* Terminal output */
+.terminal {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  background: var(--white);
+}
+
+.line {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 1em;
+}
+
+/* ANSI colours — tuned for white background readability */
+.r  { color: #b30000; }
+.g  { color: #1a6b1a; }
+.y  { color: #5e4200; }
+.bl { color: #004a99; }
+.m  { color: #7b36a0; }
+.c  { color: #006073; }
+.w  { color: #1b1d21; }
+.o  { color: #8a4500; }
+.b  { font-weight: 700; }
+
+/* Empty state */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 10px;
+  color: var(--text-muted);
+}
+
+.empty-box {
+  width: 56px; height: 56px;
+  border: 2px solid var(--border);
+  border-radius: var(--r);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono);
+  font-size: 20px;
+  color: var(--rh-gray-3);
+}
+
+.empty p { font-size: 13px; color: var(--text-muted); }
+
+/* Cursor block (running indicator in terminal) */
+.cursor-block {
+  display: inline-block;
+  width: 8px; height: 13px;
+  background: var(--rh-red);
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+/* ── Right panel ─────────────────────────────────────────────────────────────── */
+.rpanel {
+  background: var(--bg-alt);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rp-section {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.rp-head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* Result card */
+.result-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  background: var(--bg-panel);
+}
+.result-card.pass { border-color: var(--pass-border); background: var(--pass-bg); }
+.result-card.warn { border-color: var(--warn-border); background: var(--warn-bg); }
+.result-card.fail { border-color: var(--fail-border); background: var(--fail-bg); }
+.result-card.running { border-color: var(--run-border); background: var(--run-bg); }
+
+.result-label {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.result-label.pass    { color: var(--pass-text); }
+.result-label.warn    { color: var(--warn-text); }
+.result-label.fail    { color: var(--fail-text); }
+.result-label.running { color: var(--run-text); }
+.result-label.idle    { color: var(--text-muted); }
+
+.result-sub { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+
+/* Auth card */
+.auth-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  background: var(--bg-panel);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.auth-ok   { border-color: var(--pass-border); }
+.auth-fail { border-color: var(--fail-border); background: var(--fail-bg); }
+
+.auth-row { display: flex; gap: 6px; margin-top: 4px; color: var(--text-muted); }
+.auth-row span { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.auth-label { color: var(--text-muted); flex-shrink: 0; }
+
+/* Timing row */
+.timing {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+.timing b { color: var(--text); font-weight: 500; }
+
+/* Downloads */
+.dl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+}
+.dl-btn:hover:not(:disabled) { border-color: var(--rh-red); color: var(--rh-red); }
+.dl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.dl-badge {
+  font-size: 10px;
+  font-family: var(--mono);
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--rh-gray-1);
+  color: var(--text-muted);
+}
+
+/* Artifact files */
+.artifact-list { flex: 1; overflow-y: auto; padding: 10px 14px; }
+
+.art-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  margin-bottom: 5px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-size: 11px;
+}
+.art-item:hover { border-color: var(--border-dk); }
+
+.art-name { font-family: var(--mono); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-size { font-family: var(--mono); color: var(--text-muted); font-size: 10px; flex-shrink: 0; }
+.art-dl {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--rh-red);
+  border: 1px solid var(--fail-border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.art-dl:hover { background: var(--fail-bg); }
+
+.no-data { font-size: 12px; color: var(--text-muted); font-family: var(--mono); text-align: center; padding: 16px 0; }
+
+/* ── Summary panel (bottom of right panel) ───────────────────────────────────── */
+.summary-panel {
+  border-top: 1px solid var(--border);
+  padding: 12px 14px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-alt); }
+::-webkit-scrollbar-thumb { background: var(--border-dk); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--rh-gray-5); }
+
+/* ── Responsive ───────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  :root { --sidebar: 0px; --rpanel: 0px; }
+  .sidebar, .rpanel { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ══ Header ══════════════════════════════════════════════════════════════ -->
+  <header class="header">
+    <span class="header-title">OCP Upgrade Health Check</span>
+    <span class="header-ver">ocp-sysops-kit v6.0</span>
+    <div class="header-spacer"></div>
+    <div class="header-meta">
+      <span id="hostSpan" style="display:none"></span>
+      <span class="run-pill idle" id="runPill">
+        <span class="pill-dot"></span>
+        <span id="pillText">Idle</span>
+      </span>
+    </div>
+  </header>
+
+  <!-- ══ Left sidebar ════════════════════════════════════════════════════════ -->
+  <nav class="sidebar">
+    <div class="sidebar-head">Checks (22)</div>
+    <div class="sidebar-body" id="checkNav"></div>
+    <div class="sidebar-summary">
+      <div class="ss-box">
+        <div class="ss-val" id="sbFail">--</div>
+        <div class="ss-key">Failures</div>
+      </div>
+      <div class="ss-box">
+        <div class="ss-val" id="sbWarn">--</div>
+        <div class="ss-key">Warnings</div>
+      </div>
+      <div class="ss-box">
+        <div class="ss-val" id="sbLines">--</div>
+        <div class="ss-key">Lines</div>
+      </div>
+      <div class="ss-box">
+        <div class="ss-val" id="sbTime">--</div>
+        <div class="ss-key">Duration</div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══ Terminal ════════════════════════════════════════════════════════════ -->
+  <main class="main">
+
+    <div class="toolbar">
+      <button class="btn btn-run" id="btnRun" onclick="doRun()">Run Health Check</button>
+      <button class="btn btn-stop btn-sm" id="btnStop" onclick="doStop()" disabled>Stop</button>
+      <button class="btn btn-ghost btn-sm" onclick="doClear()">Clear</button>
+      <div class="t-right">
+        <label class="autoscroll-lbl">
+          <input type="checkbox" id="autoScroll" checked>
+          Auto-scroll
+        </label>
+      </div>
+    </div>
+
+    <div class="prog-track">
+      <div class="prog-fill" id="progFill"></div>
+    </div>
+
+    <div class="terminal" id="terminal">
+      <div class="empty" id="emptyState">
+        <div class="empty-box">HC</div>
+        <p>Click <strong>Run Health Check</strong> to begin</p>
+        <p style="font-size:11px;margin-top:4px;">Results stream automatically after startup</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ══ Right panel ═════════════════════════════════════════════════════════ -->
+  <aside class="rpanel">
+
+    <!-- Auth status -->
+    <div class="rp-section">
+      <div class="rp-head">Cluster Auth</div>
+      <div class="auth-card" id="authCard">
+        <div style="color:var(--text-muted);font-family:var(--mono);font-size:11px;">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="rp-section">
+      <div class="rp-head">Result</div>
+      <div class="result-card" id="resultCard">
+        <div class="result-label idle" id="resultLabel">Not run</div>
+        <div class="result-sub" id="resultSub">Run the check to see results</div>
+      </div>
+      <div class="timing" id="timing" style="display:none">
+        Start: <b id="tStart"></b>&nbsp;&nbsp;Duration: <b id="tDuration">0s</b>
+      </div>
+    </div>
+
+    <!-- Downloads -->
+    <div class="rp-section">
+      <div class="rp-head">Downloads</div>
+      <a class="dl-btn" id="dlLog" href="/api/download/log" download style="pointer-events:none;opacity:0.4">
+        Full Run Log (.txt)
+        <span class="dl-badge">TXT</span>
+      </a>
+      <a class="dl-btn" id="dlSum" href="/api/download/summary" download style="pointer-events:none;opacity:0.4">
+        Summary Report (.json)
+        <span class="dl-badge">JSON</span>
+      </a>
+    </div>
+
+    <!-- Artifact files -->
+    <div class="rp-section" style="border-bottom:none;padding-bottom:4px;">
+      <div class="rp-head">Artifact Files</div>
+    </div>
+    <div class="artifact-list" id="artifactList">
+      <div class="no-data">No artifacts yet</div>
+    </div>
+
+  </aside>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// Constants
+// ═══════════════════════════════════════════════════════════════════
+const SECTIONS = [
+  ['01','Cluster Version'],      ['02','Cluster Operators'],
+  ['03','OLM Operators'],        ['04','Node Status'],
+  ['05','Node Resources'],       ['06','MCP + MC Match'],
+  ['07','Control Plane Labels'], ['08','API / ETCD Pods'],
+  ['09','ETCD Conditions'],      ['10','ETCD etcdctl'],
+  ['11','Webhooks'],             ['12','Deprecated APIs'],
+  ['13','TLS Certificates'],     ['14','Pending CSRs'],
+  ['15','Critical Alerts'],      ['16','Workload Health'],
+  ['17','PDB Analysis'],         ['18','PVC / PV Health'],
+  ['19','Disk Usage'],           ['20','Events'],
+  ['21','Route Health'],         ['22','EgressIP'],
+];
+
+// Status -> badge text
+const BADGE = { pass:'OK', fail:'FAIL', warn:'WARN', skip:'SKIP', running:'...', idle:'--' };
+
+// ═══════════════════════════════════════════════════════════════════
+// App state
+// ═══════════════════════════════════════════════════════════════════
+let linesRendered  = 0;     // how many lines we've rendered so far
+let running        = false;
+let startTime      = null;
+let timerIv        = null;
+let pollIv         = null;
+
+// ═══════════════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════════════
+async function init() {
+  buildNav();
+  await loadAuth();
+
+  // Check if a run is already in progress or completed (e.g. auto-run on start)
+  await poll();
+  startPolling();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Nav build
+// ═══════════════════════════════════════════════════════════════════
+function buildNav() {
+  const nav = document.getElementById('checkNav');
+  nav.innerHTML = '';
+  SECTIONS.forEach(([idx, label]) => {
+    const d = document.createElement('div');
+    d.className = 'check-item';
+    d.id = `ci-${idx}`;
+    d.innerHTML =
+      `<div class="check-badge" id="cb-${idx}">${idx}</div>` +
+      `<div class="check-label">${label}</div>`;
+    d.addEventListener('click', () => {
+      const a = document.getElementById(`anchor-${idx}`);
+      if (a) a.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+    nav.appendChild(d);
+  });
+}
+
+function setCheckStatus(idx, status) {
+  const item  = document.getElementById(`ci-${idx}`);
+  const badge = document.getElementById(`cb-${idx}`);
+  if (!item) return;
+
+  // Remove all status classes, keep 'check-item'
+  item.className = `check-item ${status}`;
+  if (badge) badge.textContent = BADGE[status] || idx;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Auth
+// ═══════════════════════════════════════════════════════════════════
+async function loadAuth() {
+  let auth = {};
+  try { auth = await fetch('/api/auth').then(r => r.json()); } catch (_) {}
+
+  const card = document.getElementById('authCard');
+  if (auth.ok) {
+    card.className = 'auth-card auth-ok';
+    card.innerHTML =
+      `<div style="color:var(--pass-text);font-weight:700;font-size:12px;margin-bottom:6px;">Connected</div>` +
+      `<div class="auth-row"><span class="auth-label">User&nbsp;&nbsp;:</span><span>${auth.user || '--'}</span></div>` +
+      `<div class="auth-row"><span class="auth-label">Server:</span><span title="${auth.server}">${(auth.server||'').replace('https://','')}</span></div>` +
+      `<div class="auth-row"><span class="auth-label">Method:</span><span>${auth.method || '--'}</span></div>`;
+  } else {
+    card.className = 'auth-card auth-fail';
+    card.innerHTML =
+      `<div style="color:var(--fail-text);font-weight:700;font-size:12px;margin-bottom:6px;">Not Connected</div>` +
+      `<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono);">` +
+      `Mount kubeconfig or pass OC_TOKEN env var.<br>See README for details.</div>`;
+  }
+  if (auth.server) {
+    const h = document.getElementById('hostSpan');
+    h.textContent = (auth.server || '').replace('https://','').split(':')[0].split('.').slice(0,2).join('.');
+    h.style.display = 'inline';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Polling
+// ═══════════════════════════════════════════════════════════════════
+function startPolling() {
+  if (pollIv) clearInterval(pollIv);
+  pollIv = setInterval(poll, 2000);
+}
+
+async function poll() {
+  let data;
+  try {
+    data = await fetch(`/api/results?from=${linesRendered}`).then(r => r.json());
+  } catch (_) { return; }
+
+  // Render new lines
+  if (data.lines && data.lines.length) {
+    showTerminal();
+    data.lines.forEach(l => renderLine(l.html, l.raw));
+    linesRendered += data.lines.length;
+  }
+
+  // Update section statuses from server's parsed section list
+  if (data.sections && data.sections.length) {
+    data.sections.forEach(s => setCheckStatus(s.idx, s.status));
+  }
+
+  // Stats
+  const lineCount = data.lineCount || linesRendered;
+  document.getElementById('sbLines').textContent = lineCount;
+  const pct = Math.min(95, Math.round((lineCount / 750) * 100));
+  document.getElementById('progFill').style.width = pct + '%';
+
+  // Failure/warning counts from summary
+  if (data.totalFails !== null && data.totalFails !== undefined) {
+    const fe = document.getElementById('sbFail');
+    fe.textContent = data.totalFails;
+    fe.className = `ss-val ${data.totalFails > 0 ? 'fail' : 'ok'}`;
+  }
+  if (data.totalWarns !== null && data.totalWarns !== undefined) {
+    const we = document.getElementById('sbWarn');
+    we.textContent = data.totalWarns;
+    we.className = `ss-val ${data.totalWarns > 0 ? 'warn' : 'ok'}`;
+  }
+
+  // Running state changes
+  if (data.running && !running) {
+    // Just started (e.g. auto-run)
+    running = true;
+    startTime = data.startTime ? new Date(data.startTime) : new Date();
+    setRunning(true);
+  }
+
+  if (!data.running && running) {
+    // Just finished
+    running = false;
+    setRunning(false);
+    onDone(data.exitCode, data.result);
+  }
+
+  // If completed on page load (wasn't running when we first polled)
+  if (!data.running && data.exitCode !== null && !running) {
+    onDone(data.exitCode, data.result);
+    document.getElementById('progFill').style.width = '100%';
+    loadArtifacts();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Terminal rendering
+// ═══════════════════════════════════════════════════════════════════
+function showTerminal() {
+  const es = document.getElementById('emptyState');
+  if (es) es.remove();
+}
+
+function renderLine(html, raw) {
+  const term = document.getElementById('terminal');
+
+  // Section anchor injection
+  const m = raw && raw.replace(/\x1b\[[0-9;]*m/g,'').match(/\[(\d{2})\/22\]/);
+  if (m) {
+    const a = document.createElement('span');
+    a.id = `anchor-${m[1]}`;
+    a.style.display = 'block';
+    term.appendChild(a);
+    // Highlight active in sidebar
+    document.querySelectorAll('.check-item.active').forEach(e => e.classList.remove('active'));
+    const ci = document.getElementById(`ci-${m[1]}`);
+    if (ci) ci.classList.add('active');
+  }
+
+  const span = document.createElement('span');
+  span.className = 'line';
+  span.innerHTML = html || '&nbsp;';
+  term.appendChild(span);
+
+  if (document.getElementById('autoScroll').checked) {
+    term.scrollTop = term.scrollHeight;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Run / Stop / Clear
+// ═══════════════════════════════════════════════════════════════════
+async function doRun() {
+  doClear();
+  showTerminal();
+  setRunning(true);
+  running = true;
+  startTime = new Date();
+
+  const res = await fetch('/api/run', { method:'POST' }).then(r=>r.json()).catch(e=>({ error: e.message }));
+  if (res.error) {
+    renderLine(`<span class="r">ERROR: ${res.error}</span>`, '');
+    setRunning(false);
+    running = false;
+  }
+  linesRendered = 0;
+}
+
+async function doStop() {
+  await fetch('/api/kill', { method:'POST' }).catch(()=>{});
+}
+
+function doClear() {
+  linesRendered = 0;
+  running = false;
+  stopTimer();
+  document.getElementById('terminal').innerHTML =
+    '<div class="empty" id="emptyState">' +
+    '<div class="empty-box">HC</div>' +
+    '<p>Click <strong>Run Health Check</strong> to begin</p>' +
+    '<p style="font-size:11px;margin-top:4px;">Results stream automatically after startup</p>' +
+    '</div>';
+
+  buildNav();
+  resetResult();
+  ['sbFail','sbWarn','sbLines','sbTime'].forEach(id => {
+    const e = document.getElementById(id);
+    e.textContent = '--';
+    e.className   = 'ss-val';
+  });
+  document.getElementById('progFill').style.width = '0';
+  document.getElementById('artifactList').innerHTML = '<div class="no-data">No artifacts yet</div>';
+  enableDownloads(false);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// State helpers
+// ═══════════════════════════════════════════════════════════════════
+function setRunning(isRunning) {
+  document.getElementById('btnRun').disabled  = isRunning;
+  document.getElementById('btnStop').disabled = !isRunning;
+
+  const pill = document.getElementById('runPill');
+  const txt  = document.getElementById('pillText');
+
+  if (isRunning) {
+    pill.className = 'run-pill running';
+    txt.textContent = 'Running';
+
+    // Add cursor to terminal
+    const term = document.getElementById('terminal');
+    if (!document.getElementById('cursorBlock')) {
+      const cur = document.createElement('span');
+      cur.id = 'cursorBlock';
+      cur.className = 'cursor-block';
+      term.appendChild(cur);
+    }
+
+    // Show timing
+    document.getElementById('timing').style.display = 'block';
+    document.getElementById('tStart').textContent = startTime
+      ? startTime.toLocaleTimeString() : '--';
+    startTimer();
+
+    // Result card shows running
+    document.getElementById('resultCard').className = 'result-card running';
+    document.getElementById('resultLabel').className = 'result-label running';
+    document.getElementById('resultLabel').textContent = 'Running...';
+    document.getElementById('resultSub').textContent = 'Health check in progress';
+  } else {
+    // Remove cursor
+    const cur = document.getElementById('cursorBlock');
+    if (cur) cur.remove();
+    stopTimer();
+  }
+}
+
+function onDone(exitCode, result) {
+  stopTimer();
+
+  const pill = document.getElementById('runPill');
+  const txt  = document.getElementById('pillText');
+  const card = document.getElementById('resultCard');
+  const lbl  = document.getElementById('resultLabel');
+  const sub  = document.getElementById('resultSub');
+
+  // Map exit code → result if not provided
+  if (!result) result = exitCode === 0 ? 'pass' : exitCode === 1 ? 'warn' : 'fail';
+
+  const MAP = {
+    pass: { pill:'pass', label:'PASS',    sub:'Cluster is ready for upgrade.' },
+    warn: { pill:'warn', label:'WARNING', sub:'Review warnings before upgrading.' },
+    fail: { pill:'fail', label:'FAILED',  sub:'Critical issues must be resolved before upgrading.' },
+  };
+  const cfg = MAP[result] || MAP['fail'];
+
+  pill.className  = `run-pill ${cfg.pill}`;
+  txt.textContent = cfg.label;
+
+  card.className  = `result-card ${result}`;
+  lbl.className   = `result-label ${result}`;
+  lbl.textContent = cfg.label;
+  sub.textContent = cfg.sub;
+
+  document.getElementById('progFill').style.width = '100%';
+  enableDownloads(true);
+  loadArtifacts();
+}
+
+function resetResult() {
+  document.getElementById('resultCard').className = 'result-card';
+  document.getElementById('resultLabel').className = 'result-label idle';
+  document.getElementById('resultLabel').textContent = 'Not run';
+  document.getElementById('resultSub').textContent = 'Run the check to see results';
+  document.getElementById('runPill').className = 'run-pill idle';
+  document.getElementById('pillText').textContent = 'Idle';
+  document.getElementById('timing').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Timer
+// ═══════════════════════════════════════════════════════════════════
+function startTimer() {
+  stopTimer();
+  timerIv = setInterval(() => {
+    if (!startTime) return;
+    const s = Math.round((Date.now() - startTime.getTime()) / 1000);
+    const m = Math.floor(s / 60);
+    document.getElementById('tDuration').textContent = m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
+    document.getElementById('sbTime').textContent    = m > 0 ? `${m}m${s%60}s` : `${s}s`;
+    document.getElementById('sbTime').className      = 'ss-val';
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerIv) { clearInterval(timerIv); timerIv = null; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Downloads & Artifacts
+// ═══════════════════════════════════════════════════════════════════
+function enableDownloads(on) {
+  ['dlLog','dlSum'].forEach(id => {
+    const a = document.getElementById(id);
+    a.style.pointerEvents = on ? 'auto' : 'none';
+    a.style.opacity = on ? '1' : '0.4';
+  });
+}
+
+async function loadArtifacts() {
+  let data;
+  try { data = await fetch('/api/artifacts').then(r=>r.json()); }
+  catch (_) { return; }
+
+  const list = document.getElementById('artifactList');
+  if (!data.files || !data.files.length) {
+    list.innerHTML = '<div class="no-data">No artifact files generated</div>';
+    return;
+  }
+  list.innerHTML = '';
+  data.files.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'art-item';
+    const kb = (f.size / 1024).toFixed(1);
+    row.innerHTML =
+      `<span class="art-name" title="${f.name}">${f.name}</span>` +
+      `<span class="art-size">${kb}K</span>` +
+      `<a class="art-dl" href="/api/artifacts/${encodeURIComponent(f.name)}" download="${f.name}">DL</a>`;
+    list.appendChild(row);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Boot
+// ═══════════════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>

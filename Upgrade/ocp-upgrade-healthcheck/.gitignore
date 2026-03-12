@@ -1,0 +1,23 @@
+# Binaries — downloaded by prepare-bins.sh, never committed
+bin/oc
+bin/jq
+
+# Node
+node_modules/
+app/node_modules/
+npm-debug.log*
+
+# Artifacts from test runs
+ocp-artifacts/
+*.tar.gz
+*.tar
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -81,7 +81,7 @@ CHECKS_SKIPPED=0
 # ==============================================================================
 # ANSI COLORS  (auto-disabled when not a terminal)
 # ==============================================================================
-if [[ -t 1 && $(tput colors 2>/dev/null || echo 0) -ge 8 ]]; then
+if [[ -n "${CLICOLOR_FORCE:-}" ]] || [[ -t 1 && $(tput colors 2>/dev/null || echo 0) -ge 8 ]]; then
   C_RESET="\e[0m";    C_BOLD="\e[1m"
   C_CYAN="\e[36m";    C_GREEN="\e[32m";   C_YELLOW="\e[33m"
   C_RED="\e[31m";     C_BLUE="\e[34m";    C_MAGENTA="\e[35m"

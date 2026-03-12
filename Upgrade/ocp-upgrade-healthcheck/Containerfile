@@ -1,0 +1,135 @@
+# =============================================================================
+# OCP Upgrade Health Check Dashboard — Containerfile  (multi-stage, offline build)
+#
+# NO internet access required during build.
+# All binaries are copied from the LOCAL build context — place them here first:
+#
+#   bin/
+#     oc       ← OpenShift CLI binary for your target arch
+#     jq       ← jq static binary for your target arch
+#
+# How to get these binaries once (internet-connected machine):
+#
+#   mkdir -p bin
+#
+#   # oc — choose the right arch:
+#   # amd64 (Linux servers):
+#   curl -fsSL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux-amd64.tar.gz \
+#     | tar -xzf - -C bin/ oc
+#
+#   # arm64 (Apple M1/M2 Mac running Linux containers):
+#   curl -fsSL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux-arm64.tar.gz \
+#     | tar -xzf - -C bin/ oc
+#
+#   # jq — amd64:
+#   curl -fsSL https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64 -o bin/jq
+#   # jq — arm64:
+#   curl -fsSL https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-arm64  -o bin/jq
+#
+#   chmod +x bin/oc bin/jq
+#
+# Build:
+#   podman build -t ocp-hc:3.0 -f Containerfile .
+#
+# Runtime auth (env vars at podman run time — no host oc session needed):
+#   -e OC_TOKEN=sha256~<token>  -e OC_SERVER=https://api.cluster:6443
+#
+# Script override (volume mount — falls back to embedded default):
+#   -v /host/path/script.sh:/scripts/ocp-upgrade-healthcheck-v6.sh:ro
+# =============================================================================
+
+# ── Stage 1: tools ────────────────────────────────────────────────────────────
+# Lightweight stage — just validates and stages the local binaries.
+# Uses alpine (no subscription, no internet needed beyond the base pull).
+FROM alpine:3.19 AS tools
+
+# Copy local binaries from build context into this stage
+COPY bin/oc  /usr/local/bin/oc
+COPY bin/jq  /usr/local/bin/jq
+
+# Ensure they are executable and actually run
+RUN chmod +x /usr/local/bin/oc /usr/local/bin/jq \
+    && /usr/local/bin/jq --version \
+    && /usr/local/bin/oc version --client 2>/dev/null || \
+       echo "oc version check done (API server not reachable at build time — expected)"
+
+# ── Stage 2: node deps ────────────────────────────────────────────────────────
+# Separate stage for npm install so node_modules layer is cached independently
+# from app source changes.
+FROM node:20-slim AS nodedeps
+
+WORKDIR /app
+COPY app/package.json ./
+
+# Install production deps only — no internet proxy needed, packages cached in layer
+RUN npm install --omit=dev && npm cache clean --force
+
+# ── Stage 3: final runtime image ──────────────────────────────────────────────
+# node:20-slim is Debian-based — no RHEL subscription required.
+# curl, bash, tar, openssl, findutils all available via apt without a subscription.
+FROM node:20-slim AS final
+
+USER root
+
+# Install OS tools needed by the health check script at runtime.
+# apt-get works without any subscription on Debian/Ubuntu-based images.
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends \
+         bash \
+         curl \
+         tar \
+         gzip \
+         openssl \
+         ca-certificates \
+         procps \
+         findutils \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Copy binaries from tools stage (no download, fully offline) ───────────────
+COPY --from=tools /usr/local/bin/oc  /usr/local/bin/oc
+COPY --from=tools /usr/local/bin/jq  /usr/local/bin/jq
+
+# ── Copy Node.js app ──────────────────────────────────────────────────────────
+WORKDIR /app
+
+# node_modules from the nodedeps stage
+COPY --from=nodedeps /app/node_modules ./node_modules
+
+# App source
+COPY app/server.js  ./
+COPY app/public/    ./public/
+
+# ── Embedded default health check script ──────────────────────────────────────
+# Runs when no script is volume-mounted at /scripts/ocp-upgrade-healthcheck-v6.sh
+RUN mkdir -p /app/scripts /scripts /artifacts
+COPY scripts/ocp-upgrade-healthcheck-v6.sh /app/scripts/ocp-upgrade-healthcheck-v6.sh
+RUN chmod +x /app/scripts/ocp-upgrade-healthcheck-v6.sh
+
+# ── Entrypoint ────────────────────────────────────────────────────────────────
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# ── Permissions — run as non-root (node user = UID 1000 in node:20-slim) ──────
+RUN chown -R 1000:1000 /app /scripts \
+    && chmod 777 /artifacts \
+    && chmod 1777 /tmp
+
+USER 1000
+
+# ── Runtime environment ───────────────────────────────────────────────────────
+ENV PORT=8080 \
+    SCRIPT_PATH=/app/scripts/ocp-upgrade-healthcheck-v6.sh \
+    ARTIFACT_BASE=/artifacts \
+    AUTO_RUN=true \
+    OC_SKIP_TLS=true \
+    NODE_ENV=production \
+    HOME=/home/node \
+    PATH=/usr/local/bin:/usr/bin:/bin
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=20s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -sf http://localhost:8080/api/status > /dev/null || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
