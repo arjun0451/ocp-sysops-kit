@@ -85,6 +85,7 @@ if $REBUILD || ! podman image exists "$FULL_IMAGE" 2>/dev/null; then
   podman build \
     -t "$FULL_IMAGE" \
     -f "${CONTAINERFILE_DIR}/Containerfile" \
+    --platform linux/amd64 \
     "${CONTAINERFILE_DIR}"
   echo ""
   echo "Build complete."
