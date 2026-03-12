@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OCP Upgrade Health Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700&family=Red+Hat+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Red Hat brand palette */
+  --rh-red:       #ee0000;
+  --rh-red-dark:  #be0000;
+  --rh-red-light: #fdf2f2;
+  --rh-dark:      #151515;
+  --rh-gray-900:  #212427;
+  --rh-gray-700:  #3c3f42;
+  --rh-gray-500:  #6a6e73;
+  --rh-gray-300:  #b8bbbe;
+  --rh-gray-100:  #f0f0f0;
+  --rh-gray-50:   #f8f8f8;
+
+  --pass-color:   #1a7c2a;
+  --pass-bg:      #f3faf4;
+  --pass-border:  #c6e8ca;
+  --warn-color:   #7d5800;
+  --warn-bg:      #fffbf0;
+  --warn-border:  #f5d78e;
+  --fail-color:   #a30000;
+  --fail-bg:      #fff5f5;
+  --fail-border:  #f5c0c0;
+  --info-color:   #003d7a;
+  --info-bg:      #f0f6ff;
+  --info-border:  #b8d4f5;
+
+  --border:       #d2d2d2;
+  --border-dark:  #b8bbbe;
+  --bg:           #ffffff;
+  --bg-alt:       #f8f8f8;
+  --text:         #151515;
+  --text-muted:   #6a6e73;
+
+  --font-ui:      'Red Hat Display', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono:    'Red Hat Mono', 'Courier New', monospace;
+  --radius:       4px;
+  --sidebar-w:    210px;
+  --panel-w:      240px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-rows: 52px 1fr;
+  grid-template-columns: var(--sidebar-w) 1fr var(--panel-w);
+  height: 100vh;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────────────────────── */
+.topbar {
+  grid-column: 1 / -1;
+  background: var(--rh-dark);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  gap: 16px;
+  border-bottom: 3px solid var(--rh-red);
+}
+
+.topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rh-hat {
+  width: 28px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.topbar-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.topbar-subtitle {
+  font-size: 11px;
+  color: var(--rh-gray-300);
+  font-family: var(--font-mono);
+  padding-left: 14px;
+  border-left: 1px solid var(--rh-gray-700);
+  margin-left: 4px;
+}
+
+.topbar-spacer { flex: 1; }
+
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--rh-gray-300);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 3px 8px;
+  border-radius: var(--radius);
+  background: var(--rh-gray-700);
+  color: var(--rh-gray-300);
+  border: 1px solid var(--rh-gray-700);
+}
+
+.status-badge.running { background: #0c3b0c; color: #7fd17f; border-color: #2a5e2a; }
+.status-badge.pass    { background: #0c2e10; color: #7fd17f; border-color: #1f5e24; }
+.status-badge.warn    { background: #3b2c00; color: #f5c518; border-color: #5e4800; }
+.status-badge.fail    { background: #3b0000; color: #ff7f7f; border-color: #6e0000; }
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rh-gray-500);
+  flex-shrink: 0;
+}
+.status-dot.running { background: #4caf50; }
+.status-dot.pass    { background: #4caf50; }
+.status-dot.warn    { background: #f5c518; }
+.status-dot.fail    { background: #ff5252; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+.btn {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  padding: 6px 16px;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.btn-primary {
+  background: var(--rh-red);
+  color: #fff;
+  border-color: var(--rh-red-dark);
+}
+.btn-primary:hover:not(:disabled) { background: var(--rh-red-dark); }
+.btn-primary:disabled {
+  background: var(--rh-gray-300);
+  border-color: var(--rh-gray-300);
+  color: var(--rh-gray-500);
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--bg-alt);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--rh-gray-100); }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-danger {
+  background: var(--rh-gray-900);
+  color: #fff;
+  border-color: #444;
+}
+.btn-danger:hover:not(:disabled) { background: #8a0000; border-color: #8a0000; }
+.btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────────── */
+.sidebar {
+  background: var(--bg-alt);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 0;
+}
+
+.sidebar-heading {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 14px;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid transparent;
+}
+
+.section-item:hover { background: #f0f0f0; color: var(--text); }
+
+.section-item.active {
+  background: #fff;
+  border-left-color: var(--rh-red);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.section-item.pass { color: var(--pass-color); }
+.section-item.warn { color: var(--warn-color); }
+.section-item.fail { color: var(--fail-color); background: var(--fail-bg); }
+.section-item.skip { color: var(--rh-gray-300); font-style: italic; }
+
+.section-item.fail.active { border-left-color: var(--fail-color); }
+.section-item.warn.active { border-left-color: #c07a00; }
+.section-item.pass.active { border-left-color: var(--pass-color); }
+
+.sec-icon {
+  font-size: 11px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+.sec-label { flex: 1; line-height: 1.4; }
+
+.sec-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--rh-gray-300);
+  flex-shrink: 0;
+}
+
+/* ── Terminal pane ───────────────────────────────────────────────────────────── */
+.main-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.toolbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auto-scroll-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.auto-scroll-label input { accent-color: var(--rh-red); }
+
+.progress-track {
+  height: 2px;
+  background: var(--rh-gray-100);
+  flex-shrink: 0;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--rh-red);
+  width: 0%;
+  transition: width 0.4s ease;
+}
+
+/* Terminal output */
+.terminal {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  background: #fff;
+}
+
+.terminal .line {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 1.65em;
+}
+
+/* ANSI colour classes — muted to work on white background */
+.terminal .r  { color: #b00000; }
+.terminal .g  { color: #1a6b1a; }
+.terminal .y  { color: #6b5300; }
+.terminal .bl { color: #0050a0; }
+.terminal .m  { color: #7b3f9e; }
+.terminal .c  { color: #006080; }
+.terminal .w  { color: #151515; }
+.terminal .o  { color: #8a4500; }
+.terminal .b  { font-weight: 600; }
+
+.terminal-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+}
+
+.terminal-empty .empty-icon {
+  width: 48px;
+  height: 48px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--rh-gray-300);
+}
+
+.terminal-empty p { font-size: 13px; color: var(--text-muted); }
+.terminal-empty strong { color: var(--rh-red); font-weight: 600; }
+
+/* Cursor */
+.cursor {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  background: var(--rh-red);
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+/* ── Right panel ──────────────────────────────────────────────────────────────── */
+.right-panel {
+  background: var(--bg-alt);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-section {
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.panel-heading {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* Result box */
+.result-box {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 12px;
+  background: var(--bg);
+}
+
+.result-box.pass { border-color: var(--pass-border); background: var(--pass-bg); }
+.result-box.warn { border-color: var(--warn-border); background: var(--warn-bg); }
+.result-box.fail { border-color: var(--fail-border); background: var(--fail-bg); }
+
+.result-status {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.result-status.pass { color: var(--pass-color); }
+.result-status.warn { color: var(--warn-color); }
+.result-status.fail { color: var(--fail-color); }
+.result-status.idle { color: var(--text-muted); }
+
+.result-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Stats grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.stat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.stat-value.fail { color: var(--fail-color); }
+.stat-value.warn { color: var(--warn-color); }
+.stat-value.ok   { color: var(--pass-color); }
+
+.stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* Run info */
+.run-info {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.run-info span { color: var(--text); }
+
+/* Artifacts */
+.artifacts-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+.artifact-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  margin-bottom: 5px;
+}
+
+.artifact-row:hover { border-color: var(--border-dark); }
+
+.artifact-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.artifact-name {
+  flex: 1;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-size {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.artifact-dl {
+  font-size: 11px;
+  color: var(--rh-red);
+  text-decoration: none;
+  font-weight: 600;
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius);
+}
+
+.artifact-dl:hover { background: var(--rh-red-light); }
+
+.no-data {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-alt); }
+::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--rh-gray-500); }
+
+/* Divider */
+hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 0 1fr 0; }
+  .sidebar, .right-panel { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-logo">
+      <!-- Red Hat hat SVG -->
+      <svg class="rh-hat" viewBox="0 0 105 41" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M93.5 34.5C93.5 34.5 79.5 40 52.5 40C25.5 40 11.5 34.5 11.5 34.5C11.5 34.5 7 31 7 28C7 25 9 23 9 23L28 13.5H77L96 23C96 23 98 25 98 28C98 31 93.5 34.5 93.5 34.5Z" fill="#EE0000"/>
+        <path d="M28 13.5L40 3.5H66L77 13.5H28Z" fill="#CC0000"/>
+        <path d="M40 3.5H66L64 1H42L40 3.5Z" fill="#A00000"/>
+      </svg>
+      <span class="topbar-title">OCP Upgrade Health Check</span>
+    </div>
+    <span class="topbar-subtitle">ocp-sysops-kit v6.0</span>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-meta">
+      <span id="hostLabel" style="display:none"></span>
+      <span class="status-badge idle" id="statusBadge">
+        <span class="status-dot idle" id="statusDot"></span>
+        <span id="statusText">Idle</span>
+      </span>
+    </div>
+  </header>
+
+  <!-- Left sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-heading">Checks (22)</div>
+    <div id="sectionNav"></div>
+  </nav>
+
+  <!-- Main terminal -->
+  <main class="main-pane">
+
+    <div class="toolbar">
+      <button class="btn btn-primary" id="btnRun" onclick="runScript()">Run Health Check</button>
+      <button class="btn btn-danger" id="btnKill" onclick="killScript()" disabled>Stop</button>
+      <button class="btn btn-secondary btn-sm" onclick="clearOutput()">Clear</button>
+      <div class="toolbar-right">
+        <label class="auto-scroll-label">
+          <input type="checkbox" id="autoScroll" checked>
+          Auto-scroll
+        </label>
+      </div>
+    </div>
+
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <div class="terminal" id="terminal">
+      <div class="terminal-empty" id="emptyState">
+        <div class="empty-icon">[ ]</div>
+        <p>Click <strong>Run Health Check</strong> to begin</p>
+        <p style="font-size:11px">Output streams live to this window</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Right panel -->
+  <aside class="right-panel">
+
+    <div class="panel-section">
+      <div class="panel-heading">Result</div>
+      <div class="result-box idle" id="resultBox">
+        <div class="result-status idle" id="resultStatus">Not run</div>
+        <div class="result-detail" id="resultDetail">Run the check to see results</div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-value" id="statFail">--</div>
+          <div class="stat-label">Failures</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statWarn">--</div>
+          <div class="stat-label">Warnings</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statLines">--</div>
+          <div class="stat-label">Lines</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statDuration">--</div>
+          <div class="stat-label">Duration</div>
+        </div>
+      </div>
+      <div class="run-info" id="runInfo" style="display:none">
+        Started: <span id="runStart"></span>
+      </div>
+    </div>
+
+    <div class="panel-section" style="border-bottom: none; padding-bottom: 6px;">
+      <div class="panel-heading">Artifacts</div>
+    </div>
+    <div class="artifacts-list" id="artifactsList">
+      <div class="no-data">No artifacts yet</div>
+    </div>
+
+  </aside>
+
+</div>
+
+<script>
+// ============================================================================
+// App state
+// ============================================================================
+const S = {
+  running:   false,
+  exitCode:  null,
+  startTime: null,
+  lines:     0,
+  fails:     0,
+  warns:     0,
+  timer:     null,
+  evtSrc:    null,
+  secStatus: {},          // idx -> 'pass'|'warn'|'fail'|'skip'
+  curSec:    null,
+};
+
+// Section definitions matching script output [NN/22]
+const SECTIONS = [
+  ['01','Cluster Version'],
+  ['02','Cluster Operators'],
+  ['03','OLM Operators'],
+  ['04','Node Status'],
+  ['05','Node Resources'],
+  ['06','MCP + MC Match'],
+  ['07','Control Plane Labels'],
+  ['08','API / ETCD Pods'],
+  ['09','ETCD Conditions'],
+  ['10','ETCD etcdctl'],
+  ['11','Admission Webhooks'],
+  ['12','Deprecated APIs'],
+  ['13','TLS Certificates'],
+  ['14','Pending CSRs'],
+  ['15','Critical Alerts'],
+  ['16','Workload Health'],
+  ['17','PDB Analysis'],
+  ['18','PVC / PV Health'],
+  ['19','Disk Usage'],
+  ['20','Events'],
+  ['21','Route Health'],
+  ['22','EgressIP'],
+  ['--','Summary'],
+];
+
+// Icon chars — text only, no emoji
+const ICONS = { pass:'[OK]', warn:'[!]', fail:'[X]', skip:'[-]', active:'[>]', idle:'[ ]' };
+
+// ============================================================================
+// Init
+// ============================================================================
+async function init() {
+  buildNav();
+  const st = await fetch('/api/status').then(r=>r.json()).catch(()=>({}));
+  if (st.hostname) {
+    document.getElementById('hostLabel').textContent = st.hostname;
+    document.getElementById('hostLabel').style.display = 'inline';
+  }
+  // Catch up if a run already happened
+  const data = await fetch('/api/lines').then(r=>r.json()).catch(()=>({}));
+  if (data.lines && data.lines.length) {
+    showTerminal();
+    data.lines.forEach(l => renderLine(l.html, l.raw));
+    if (data.running) {
+      setRunning(true);
+      openSSE();
+    } else if (data.exitCode !== null) {
+      onDone(data.exitCode, []);
+    }
+  }
+}
+
+// ============================================================================
+// Nav
+// ============================================================================
+function buildNav() {
+  const nav = document.getElementById('sectionNav');
+  nav.innerHTML = '';
+  SECTIONS.forEach(([idx, label]) => {
+    const d = document.createElement('div');
+    d.className = 'section-item';
+    d.id = `nav-${idx}`;
+    d.innerHTML =
+      `<span class="sec-icon" id="icon-${idx}">${ICONS.idle}</span>` +
+      `<span class="sec-label">${label}</span>` +
+      `<span class="sec-num">${idx}</span>`;
+    d.addEventListener('click', () => jumpTo(idx));
+    nav.appendChild(d);
+  });
+}
+
+function setNavStatus(idx, status) {
+  const d = document.getElementById(`nav-${idx}`);
+  const ic = document.getElementById(`icon-${idx}`);
+  if (!d) return;
+  // Remove old status classes
+  d.className = `section-item ${status}`;
+  if (ic) ic.textContent = ICONS[status] || ICONS.idle;
+  if (status === 'active') d.classList.add('active');
+}
+
+function jumpTo(idx) {
+  const a = document.getElementById(`anchor-${idx}`);
+  if (a) a.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ============================================================================
+// Terminal
+// ============================================================================
+function showTerminal() {
+  const es = document.getElementById('emptyState');
+  if (es) es.remove();
+}
+
+function renderLine(html, raw) {
+  const term = document.getElementById('terminal');
+  S.lines++;
+  document.getElementById('statLines').textContent = S.lines;
+
+  // Detect section header
+  const secM = raw && raw.match(/\[(\d{2})\/22\]/);
+  if (secM) {
+    const idx = secM[1];
+    // Close previous section as pass if no status set
+    if (S.curSec && !S.secStatus[S.curSec]) {
+      S.secStatus[S.curSec] = 'pass';
+      setNavStatus(S.curSec, 'pass');
+    }
+    S.curSec = idx;
+    setNavStatus(idx, 'active');
+
+    const anchor = document.createElement('span');
+    anchor.id = `anchor-${idx}`;
+    anchor.style.display = 'block';
+    term.appendChild(anchor);
+  }
+
+  // Summary section
+  if (raw && raw.includes('CHECK SUMMARY')) {
+    const anchor = document.createElement('span');
+    anchor.id = 'anchor---';
+    anchor.style.display = 'block';
+    term.appendChild(anchor);
+    if (S.curSec && !S.secStatus[S.curSec]) {
+      S.secStatus[S.curSec] = 'pass';
+      setNavStatus(S.curSec, 'pass');
+    }
+    S.curSec = '--';
+    setNavStatus('--', 'active');
+  }
+
+  // Skipped section
+  if (raw && raw.includes('SKIPPED:')) {
+    const m = raw.match(/\[(\d{2})\/22\]/);
+    if (m) { S.secStatus[m[1]] = 'skip'; setNavStatus(m[1], 'skip'); }
+  }
+
+  // Status signals from line content
+  if (raw && S.curSec && S.curSec !== '--') {
+    const isFail = raw.includes('mark_fail') || raw.includes('[X]') ||
+                   (raw.includes('CRITICAL') && raw.includes('FAILED'));
+    const isWarn = raw.includes('mark_warn') || raw.includes('[!]');
+    if (isFail && S.secStatus[S.curSec] !== 'fail') {
+      S.secStatus[S.curSec] = 'fail';
+      setNavStatus(S.curSec, 'fail');
+    } else if (isWarn && !S.secStatus[S.curSec]) {
+      S.secStatus[S.curSec] = 'warn';
+      setNavStatus(S.curSec, 'warn');
+    }
+  }
+
+  // Extract summary counts from script output lines
+  if (raw) {
+    const fm = raw.match(/Failures\s*:\s*(\d+)/);
+    const wm = raw.match(/Warnings\s*:\s*(\d+)/);
+    if (fm) {
+      S.fails = parseInt(fm[1], 10);
+      const el = document.getElementById('statFail');
+      el.textContent = S.fails;
+      el.className = `stat-value ${S.fails > 0 ? 'fail' : 'ok'}`;
+    }
+    if (wm) {
+      S.warns = parseInt(wm[1], 10);
+      const el = document.getElementById('statWarn');
+      el.textContent = S.warns;
+      el.className = `stat-value ${S.warns > 0 ? 'warn' : 'ok'}`;
+    }
+  }
+
+  // Append line to terminal
+  const span = document.createElement('span');
+  span.className = 'line';
+  span.innerHTML = html || '&nbsp;';
+  term.appendChild(span);
+
+  // Rough progress (typical run ~700 lines)
+  const pct = Math.min(95, Math.round((S.lines / 700) * 100));
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  if (document.getElementById('autoScroll').checked) {
+    term.scrollTop = term.scrollHeight;
+  }
+}
+
+function clearOutput() {
+  const term = document.getElementById('terminal');
+  term.innerHTML =
+    '<div class="terminal-empty" id="emptyState">' +
+    '<div class="empty-icon">[ ]</div>' +
+    '<p>Click <strong>Run Health Check</strong> to begin</p>' +
+    '<p style="font-size:11px">Output streams live to this window</p>' +
+    '</div>';
+  S.lines = 0; S.fails = 0; S.warns = 0; S.secStatus = {}; S.curSec = null;
+  buildNav();
+  resetResult();
+  ['statFail','statWarn','statLines','statDuration'].forEach(id => {
+    document.getElementById(id).textContent = '--';
+    document.getElementById(id).className = 'stat-value';
+  });
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('artifactsList').innerHTML = '<div class="no-data">No artifacts yet</div>';
+}
+
+// ============================================================================
+// Run / Kill
+// ============================================================================
+async function runScript() {
+  clearOutput();
+  showTerminal();
+  setRunning(true);
+
+  const res = await fetch('/api/run', { method: 'POST' })
+    .then(r => r.json())
+    .catch(e => ({ error: e.message }));
+
+  if (res.error) {
+    renderLine(`<span class="r">Error: ${res.error}</span>`, '');
+    setRunning(false);
+    return;
+  }
+  openSSE();
+}
+
+async function killScript() {
+  await fetch('/api/kill', { method: 'POST' });
+}
+
+// ============================================================================
+// SSE
+// ============================================================================
+function openSSE() {
+  if (S.evtSrc) S.evtSrc.close();
+  S.evtSrc = new EventSource('/api/stream');
+
+  S.evtSrc.addEventListener('start', e => {
+    const d = JSON.parse(e.data);
+    S.startTime = new Date(d.startTime);
+    document.getElementById('runInfo').style.display = 'block';
+    document.getElementById('runStart').textContent = S.startTime.toLocaleTimeString();
+    startTimer();
+  });
+
+  S.evtSrc.addEventListener('line', e => {
+    const d = JSON.parse(e.data);
+    renderLine(d.html, d.raw);
+  });
+
+  S.evtSrc.addEventListener('done', e => {
+    const d = JSON.parse(e.data);
+    S.evtSrc.close();
+    onDone(d.exitCode, d.artifacts || []);
+  });
+
+  S.evtSrc.onerror = () => { if (!S.running) S.evtSrc.close(); };
+}
+
+// ============================================================================
+// Done
+// ============================================================================
+function onDone(exitCode, artifacts) {
+  setRunning(false);
+  stopTimer();
+
+  // Finalise last section
+  if (S.curSec) {
+    const s = S.secStatus[S.curSec] || 'pass';
+    setNavStatus(S.curSec, s);
+  }
+  setNavStatus('--', exitCode === 0 ? 'pass' : exitCode === 1 ? 'warn' : 'fail');
+
+  document.getElementById('progressFill').style.width = '100%';
+
+  // Result
+  const rb = document.getElementById('resultBox');
+  const rs = document.getElementById('resultStatus');
+  const rd = document.getElementById('resultDetail');
+  const sb = document.getElementById('statusBadge');
+  const sd = document.getElementById('statusDot');
+  const st = document.getElementById('statusText');
+
+  const map = {
+    0: { cls:'pass', label:'PASS',    detail:'Cluster is ready for upgrade' },
+    1: { cls:'warn', label:'WARNING', detail:'Review warnings before upgrading' },
+    2: { cls:'fail', label:'FAILED',  detail:'Fix critical issues before upgrading' },
+  };
+  const cfg = map[exitCode] || { cls:'fail', label:`Exit ${exitCode}`, detail:'Unexpected result' };
+
+  rb.className = `result-box ${cfg.cls}`;
+  rs.className = `result-status ${cfg.cls}`;
+  rs.textContent = cfg.label;
+  rd.textContent = cfg.detail;
+  sb.className = `status-badge ${cfg.cls}`;
+  sd.className  = `status-dot ${cfg.cls}`;
+  st.textContent = cfg.label;
+
+  // Artifacts
+  if (artifacts && artifacts.length) {
+    renderArtifacts(artifacts);
+  } else {
+    fetch('/api/artifacts').then(r=>r.json()).then(d => {
+      if (d.files && d.files.length) renderArtifacts(d.files);
+    }).catch(()=>{});
+  }
+}
+
+function renderArtifacts(files) {
+  const list = document.getElementById('artifactsList');
+  if (!files.length) { list.innerHTML = '<div class="no-data">No artifacts</div>'; return; }
+  list.innerHTML = '';
+  files.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'artifact-row';
+    const kb = (f.size / 1024).toFixed(1);
+    row.innerHTML =
+      `<span class="artifact-icon">[F]</span>` +
+      `<span class="artifact-name" title="${f.name}">${f.name}</span>` +
+      `<span class="artifact-size">${kb}K</span>` +
+      `<a class="artifact-dl" href="/api/artifacts/${encodeURIComponent(f.name)}" download="${f.name}">DL</a>`;
+    list.appendChild(row);
+  });
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+function setRunning(running) {
+  S.running = running;
+  document.getElementById('btnRun').disabled  = running;
+  document.getElementById('btnKill').disabled = !running;
+  const sb = document.getElementById('statusBadge');
+  const sd = document.getElementById('statusDot');
+  const st = document.getElementById('statusText');
+  if (running) {
+    sb.className = 'status-badge running';
+    sd.className = 'status-dot running';
+    st.textContent = 'Running';
+    // Add cursor to terminal
+    const term = document.getElementById('terminal');
+    let cur = document.getElementById('runCursor');
+    if (!cur) {
+      cur = document.createElement('span');
+      cur.id = 'runCursor';
+      cur.className = 'cursor';
+      term.appendChild(cur);
+    }
+  } else {
+    // Remove cursor
+    const cur = document.getElementById('runCursor');
+    if (cur) cur.remove();
+    const sb2 = document.getElementById('statusBadge');
+    if (!sb2.classList.contains('pass') &&
+        !sb2.classList.contains('warn') &&
+        !sb2.classList.contains('fail')) {
+      sb2.className = 'status-badge idle';
+      document.getElementById('statusDot').className = 'status-dot idle';
+      document.getElementById('statusText').textContent = 'Idle';
+    }
+  }
+}
+
+function resetResult() {
+  document.getElementById('resultBox').className = 'result-box idle';
+  document.getElementById('resultStatus').className = 'result-status idle';
+  document.getElementById('resultStatus').textContent = 'Not run';
+  document.getElementById('resultDetail').textContent = 'Run the check to see results';
+  document.getElementById('runInfo').style.display = 'none';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('statusBadge').className = 'status-badge idle';
+  document.getElementById('statusDot').className = 'status-dot idle';
+  document.getElementById('statusText').textContent = 'Idle';
+}
+
+function startTimer() {
+  stopTimer();
+  S.timer = setInterval(() => {
+    if (!S.startTime) return;
+    const sec = Math.round((Date.now() - S.startTime.getTime()) / 1000);
+    const min = Math.floor(sec / 60);
+    const el  = document.getElementById('statDuration');
+    el.textContent = min > 0 ? `${min}m${sec % 60}s` : `${sec}s`;
+    el.className = 'stat-value';
+  }, 1000);
+}
+
+function stopTimer() {
+  if (S.timer) { clearInterval(S.timer); S.timer = null; }
+}
+
+// Boot
+init();
+</script>
+</body>
+</html>
