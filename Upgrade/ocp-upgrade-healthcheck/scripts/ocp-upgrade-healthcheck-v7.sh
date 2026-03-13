@@ -1502,7 +1502,7 @@ main() {
   [[ "$RUN_PVC"                  == "true" ]] && check_pvc                  || skipped_section 18 "PVC & PV Health"
   [[ "$RUN_DISK_SYSROOT"         == "true" ]] && check_disk_sysroot         || skipped_section 19 "Node Disk Usage"
   [[ "$RUN_EVENTS"               == "true" ]] && check_events               || skipped_section 20 "Recent Events"
-  [[ "$RUN_ROUTES"               == "false" ]] && check_routes               || skipped_section 21 "Route Health"
+  [[ "$RUN_ROUTES"               == "true" ]] && check_routes               || skipped_section 21 "Route Health"
   [[ "$RUN_EGRESSIP"             == "true" ]] && check_egressip             || skipped_section 22 "EgressIP Health"
   [[ "$RUN_HW_COMPAT"            == "true" ]] && check_hw_compat            || skipped_section 23 "Hardware Compatibility"
   [[ "$RUN_CLOUD_CREDS"          == "true" ]] && check_cloud_creds          || skipped_section 24 "Cloud Credential Operator"

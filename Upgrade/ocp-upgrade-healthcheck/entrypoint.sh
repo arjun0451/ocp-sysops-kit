@@ -15,7 +15,7 @@ warn() { printf "${C_YLW}[warn]${C_RST} %s\n" "$*"; }
 die()  { printf "${C_RED}[FAIL]${C_RST} %s\n" "$*" >&2; exit 1; }
 
 printf "\n${C_BLD}================================================${C_RST}\n"
-printf "${C_BLD}  OCP Upgrade Health Check Dashboard v3${C_RST}\n"
+printf "${C_BLD}  OCP Upgrade Health Check Dashboard v4.0${C_RST}\n"
 printf "${C_BLD}================================================${C_RST}\n\n"
 
 # ── 1. Verify bundled tools ───────────────────────────────────────────────────
@@ -88,8 +88,8 @@ fi
 echo ""
 
 # ── 3. Script resolution ──────────────────────────────────────────────────────
-MOUNTED_SCRIPT="/scripts/ocp-upgrade-healthcheck-v6.sh"
-EMBEDDED_SCRIPT="/app/scripts/ocp-upgrade-healthcheck-v6.sh"
+MOUNTED_SCRIPT="/scripts/ocp-upgrade-healthcheck-v7.sh"
+EMBEDDED_SCRIPT="/app/scripts/ocp-upgrade-healthcheck-v7.sh"
 
 if [[ -f "$MOUNTED_SCRIPT" ]]; then
   chmod +x "$MOUNTED_SCRIPT" 2>/dev/null || true
@@ -101,7 +101,7 @@ elif [[ -f "$EMBEDDED_SCRIPT" ]]; then
   SCRIPT_SOURCE="embedded"
   ok "Script [embedded] : $ACTIVE_SCRIPT"
 else
-  die "No health check script found. Mount with -v /path/to/script.sh:/scripts/ocp-upgrade-healthcheck-v6.sh:ro"
+  die "No health check script found. Mount with -v /path/to/script.sh:/scripts/ocp-upgrade-healthcheck-v7.sh:ro"
 fi
 
 export SCRIPT_PATH="$ACTIVE_SCRIPT"

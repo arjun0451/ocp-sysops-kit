@@ -21,7 +21,7 @@ const { spawn } = require('child_process');
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const PORT         = parseInt(process.env.PORT || '8080', 10);
-const SCRIPT_PATH  = process.env.SCRIPT_PATH  || '/app/scripts/ocp-upgrade-healthcheck-v6.sh';
+const SCRIPT_PATH  = process.env.SCRIPT_PATH  || '/app/scripts/ocp-upgrade-healthcheck-v7.sh';
 // Resolve a writable artifact base — fall back to /tmp/artifacts if mounted dir isn't writable
 function resolveArtifactBase() {
   const candidates = [
@@ -90,36 +90,60 @@ function parseLineMeta(raw) {
   // Strip ANSI for analysis
   const clean = raw.replace(/\x1b\[[0-9;]*m/g, '').trim();
 
-  // Detect check section header: [01/22]
-  const secMatch = clean.match(/^\[(\d{2})\/22\]/);
-  if (secMatch) {
-    return { type: 'section_start', idx: secMatch[1], clean };
+  // v7 section header format:  "  CHECK 01/25  Title"
+  // The script emits: printf "  CHECK %02d/%02d  %s"
+  const secV7 = clean.match(/^CHECK\s+(\d{2})\/\d{2}\s/);
+  if (secV7) {
+    return { type: 'section_start', idx: secV7[1], clean };
   }
 
-  // Detect skipped section
+  // v6 fallback: "  [01/22] Title" or "── [01/22]"
+  const secV6 = clean.match(/\[(\d{2})\/\d{2}\]/);
+  if (secV6 && !clean.includes('SKIP') && !clean.includes('SKIPPED')) {
+    return { type: 'section_start', idx: secV6[1], clean };
+  }
+
+  // Skipped section — v7: "[SKIP]  23/25  Title"
+  if (clean.startsWith('[SKIP]')) {
+    const sm = clean.match(/(\d{2})\/\d{2}/);
+    if (sm) return { type: 'section_skip', idx: sm[1], clean };
+  }
+  // v6 fallback skipped
   if (clean.includes('SKIPPED:')) {
-    const sm = clean.match(/\[(\d{2})\/22\]/);
+    const sm = clean.match(/\[(\d{2})\/\d{2}\]/);
     if (sm) return { type: 'section_skip', idx: sm[1], clean };
   }
 
-  // Detect summary block
+  // Summary block marker
   if (clean.includes('CHECK SUMMARY')) return { type: 'summary_start', clean };
 
-  // Detect result line from summary
-  const failMatch = clean.match(/Failures\s*:\s*(\d+)/);
-  const warnMatch = clean.match(/Warnings\s*:\s*(\d+)/);
-  if (failMatch) return { type: 'stat_fail', count: parseInt(failMatch[1], 10), clean };
-  if (warnMatch) return { type: 'stat_warn', count: parseInt(warnMatch[1], 10), clean };
-
-  // Detect overall result
+  // Overall result — v7 uses "RESULT : PASS / WARNING / FAILED"
+  if (clean.includes('RESULT : PASS'))    return { type: 'result', result: 'pass', clean };
+  if (clean.includes('RESULT : WARNING')) return { type: 'result', result: 'warn', clean };
+  if (clean.includes('RESULT : FAILED'))  return { type: 'result', result: 'fail', clean };
+  // v6 fallback
   if (clean.includes('RESULT: PASS'))    return { type: 'result', result: 'pass', clean };
   if (clean.includes('RESULT: WARNING')) return { type: 'result', result: 'warn', clean };
   if (clean.includes('RESULT: FAILED'))  return { type: 'result', result: 'fail', clean };
 
-  // Detect line-level signals for section colouring
-  if (clean.startsWith('[X]') || clean.includes('mark_fail')) return { type: 'line_fail', clean };
-  if (clean.startsWith('[!]') || clean.includes('mark_warn')) return { type: 'line_warn', clean };
-  if (clean.startsWith('[OK]'))                                return { type: 'line_ok',   clean };
+  // Summary stat lines — e.g. "Failures   3" (trim() already applied so leading spaces gone)
+  const failStat = clean.match(/^Failures\s+(\d+)/i);
+  const warnStat = clean.match(/^Warnings\s+(\d+)/i);
+  if (failStat) return { type: 'stat_fail', count: parseInt(failStat[1], 10), clean };
+  if (warnStat) return { type: 'stat_warn', count: parseInt(warnStat[1], 10), clean };
+
+  // BUG-1 FIX: count live [FAIL]/[WARN] per-check lines to update sidebar in real time.
+  // Script emits "  [FAIL]  message" and "  [WARN]  message" via fail()/warn() helpers.
+  // Exclude summary list lines which start with spaces then "->".
+  if (/^\[FAIL\]/.test(clean) && !clean.includes('Failures Detected') && !clean.includes('->')) {
+    return { type: 'line_fail', clean };
+  }
+  if (/^\[WARN\]/.test(clean) && !clean.includes('Warnings Detected') && !clean.includes('->')) {
+    return { type: 'line_warn', clean };
+  }
+  if (/^\[PASS\]/.test(clean)) {
+    return { type: 'line_ok', clean };
+  }
 
   return { type: 'text', clean };
 }
@@ -133,8 +157,8 @@ function freshState() {
     endTime:     null,
     exitCode:    null,
     result:      null,       // 'pass' | 'warn' | 'fail'
-    totalFails:  null,
-    totalWarns:  null,
+    totalFails:  0,
+    totalWarns:  0,
     lines:       [],         // { ts, raw, html, meta }
     sections:    [],         // { idx, label, startLine, status }
     artifactDir: null,
@@ -159,6 +183,8 @@ const SECTION_LABELS = {
   '17':'PDB Analysis',         '18':'PVC / PV Health',
   '19':'Disk Usage',           '20':'Events',
   '21':'Route Health',         '22':'EgressIP',
+  '23':'HW Compatibility',     '24':'Cloud Credentials',
+  '25':'CSI Drivers',
 };
 
 // ── Process incoming output chunk ─────────────────────────────────────────────
@@ -206,6 +232,7 @@ function processLine(raw) {
       break;
     }
     case 'stat_fail':
+      // Summary block is authoritative — override the live running count
       S.totalFails = meta.count;
       break;
     case 'stat_warn':
@@ -215,11 +242,15 @@ function processLine(raw) {
       S.result = meta.result;
       break;
     case 'line_fail': {
+      // Count failures live so sidebar stats update during run
+      S.totalFails++;
       const cur = [...S.sections].reverse().find(s => s.status === 'running');
       if (cur) cur.status = 'fail';
       break;
     }
     case 'line_warn': {
+      // Count warnings live
+      S.totalWarns++;
       const cur = [...S.sections].reverse().find(s => s.status === 'running');
       if (cur && cur.status === 'running') cur.status = 'warn';
       break;
@@ -271,7 +302,7 @@ function runScript() {
   if (process.env.KUBECONFIG) env.KUBECONFIG = process.env.KUBECONFIG;
 
   const scriptToRun = fs.existsSync(SCRIPT_PATH) ? SCRIPT_PATH
-    : '/app/scripts/ocp-upgrade-healthcheck-v6.sh';
+    : '/app/scripts/ocp-upgrade-healthcheck-v7.sh';
 
   // Patch the script on-the-fly to force color output:
   // The script checks `[[ -t 1 ]]` for TTY — pipe breaks that.
@@ -443,7 +474,7 @@ app.get('/api/download/summary', (_req, res) => {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[server] OCP Health Check Dashboard v3 — port ${PORT}`);
+  console.log(`[server] OCP Health Check Dashboard v7 — port ${PORT}`);
   console.log(`[server] Script : ${SCRIPT_PATH}`);
   console.log(`[server] Ready  : http://localhost:${PORT}`);
 });

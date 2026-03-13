@@ -29,13 +29,13 @@
 #   chmod +x bin/oc bin/jq
 #
 # Build:
-#   podman build -t ocp-hc:3.0 -f Containerfile .
+#   podman build -t ocp-hc:4.0 -f Containerfile .
 #
 # Runtime auth (env vars at podman run time — no host oc session needed):
 #   -e OC_TOKEN=sha256~<token>  -e OC_SERVER=https://api.cluster:6443
 #
 # Script override (volume mount — falls back to embedded default):
-#   -v /host/path/script.sh:/scripts/ocp-upgrade-healthcheck-v6.sh:ro
+#   -v /host/path/script.sh:/scripts/ocp-upgrade-healthcheck-v7.sh:ro
 # =============================================================================
 
 # ── Stage 1: tools ────────────────────────────────────────────────────────────
@@ -101,10 +101,10 @@ COPY app/server.js  ./
 COPY app/public/    ./public/
 
 # ── Embedded default health check script ──────────────────────────────────────
-# Runs when no script is volume-mounted at /scripts/ocp-upgrade-healthcheck-v6.sh
+# Runs when no script is volume-mounted at /scripts/ocp-upgrade-healthcheck-v7.sh
 RUN mkdir -p /app/scripts /scripts /artifacts
-COPY scripts/ocp-upgrade-healthcheck-v6.sh /app/scripts/ocp-upgrade-healthcheck-v6.sh
-RUN chmod +x /app/scripts/ocp-upgrade-healthcheck-v6.sh
+COPY scripts/ocp-upgrade-healthcheck-v7.sh /app/scripts/ocp-upgrade-healthcheck-v7.sh
+RUN chmod +x /app/scripts/ocp-upgrade-healthcheck-v7.sh
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 COPY entrypoint.sh /entrypoint.sh
@@ -119,7 +119,7 @@ USER 1000
 
 # ── Runtime environment ───────────────────────────────────────────────────────
 ENV PORT=8080 \
-    SCRIPT_PATH=/app/scripts/ocp-upgrade-healthcheck-v6.sh \
+    SCRIPT_PATH=/app/scripts/ocp-upgrade-healthcheck-v7.sh \
     ARTIFACT_BASE=/artifacts \
     AUTO_RUN=true \
     OC_SKIP_TLS=true \
