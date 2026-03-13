@@ -3,684 +3,622 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OCP Upgrade Health Check Dashboard</title>
+<title>OCP Upgrade Health Check</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700&family=Red+Hat+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* ── Reset ──────────────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* ── Reset ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
-/* ── Variables ──────────────────────────────────────────────────────────────── */
-:root {
-  --rh-red:        #ee0000;
-  --rh-red-dk:     #c00000;
-  --rh-dark:       #1b1d21;
-  --rh-gray-7:     #3c3f42;
-  --rh-gray-5:     #6a6e73;
-  --rh-gray-3:     #b8bbbe;
-  --rh-gray-1:     #f0f0f0;
-  --white:         #ffffff;
-  --border:        #d2d2d2;
-  --border-dk:     #b8bbbe;
-  --text:          #1b1d21;
-  --text-muted:    #6a6e73;
-  --bg-page:       #f4f4f4;
-  --bg-panel:      #ffffff;
-  --bg-alt:        #f8f8f8;
+/* ── Design Tokens ── */
+:root{
+  /* Core palette — dark ops */
+  --bg:        #0b0d10;
+  --bg2:       #111318;
+  --bg3:       #181b21;
+  --bg4:       #1e2028;
+  --border:    #252830;
+  --border2:   #2e3240;
 
-  --pass-text:     #1e4620;
-  --pass-bg:       #f2faf3;
-  --pass-border:   #b7debb;
-  --warn-text:     #5e3d00;
-  --warn-bg:       #fff8e6;
-  --warn-border:   #f5d88a;
-  --fail-text:     #a30000;
-  --fail-bg:       #fff2f2;
-  --fail-border:   #f5b8b8;
-  --skip-text:     #6a6e73;
-  --skip-bg:       #f8f8f8;
-  --skip-border:   #d2d2d2;
-  --run-text:      #003d7a;
-  --run-bg:        #edf4ff;
-  --run-border:    #bad3f5;
+  /* Text */
+  --tx:        #e2e4ea;
+  --tx2:       #9ba3b5;
+  --tx3:       #5a6278;
 
-  --font:          'Red Hat Display', 'Helvetica Neue', Arial, sans-serif;
-  --mono:          'Red Hat Mono', 'Courier New', monospace;
-  --r:             4px;
-  --sidebar:       224px;
-  --rpanel:        256px;
+  /* Red accent — OCP */
+  --red:       #ee0000;
+  --red2:      #cc0000;
+  --red-glow:  rgba(238,0,0,.18);
+  --red-dim:   rgba(238,0,0,.08);
+
+  /* Status */
+  --pass:      #22c55e;
+  --pass-bg:   rgba(34,197,94,.08);
+  --pass-bd:   rgba(34,197,94,.22);
+  --warn:      #f59e0b;
+  --warn-bg:   rgba(245,158,11,.08);
+  --warn-bd:   rgba(245,158,11,.22);
+  --fail:      #ef4444;
+  --fail-bg:   rgba(239,68,68,.08);
+  --fail-bd:   rgba(239,68,68,.22);
+  --run:       #3b82f6;
+  --run-bg:    rgba(59,130,246,.08);
+  --run-bd:    rgba(59,130,246,.22);
+  --skip:      #374151;
+  --skip-tx:   #4b5563;
+
+  /* Terminal colors */
+  --t-red:     #ff6b6b;
+  --t-green:   #69db7c;
+  --t-yellow:  #ffd43b;
+  --t-blue:    #74c0fc;
+  --t-magenta: #cc5de8;
+  --t-cyan:    #3bc9db;
+  --t-white:   #dee2e6;
+  --t-orange:  #ff922b;
+
+  /* Layout */
+  --hh:   48px;
+  --sw:   228px;
+  --rw:   272px;
+
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', 'Menlo', monospace;
+  --r:    4px;
+  --r2:   6px;
 }
 
-/* ── Base ───────────────────────────────────────────────────────────────────── */
-html, body { height: 100%; background: var(--bg-page); color: var(--text); font-family: var(--font); font-size: 13px; overflow: hidden; }
-
-/* ── Layout grid ─────────────────────────────────────────────────────────────── */
-.layout {
-  display: grid;
-  grid-template-rows: 52px 1fr;
-  grid-template-columns: var(--sidebar) 1fr var(--rpanel);
-  height: 100vh;
-  gap: 0;
+/* ── Base ── */
+html,body{
+  height:100%;font-family:var(--sans);font-size:13px;
+  color:var(--tx);background:var(--bg);overflow:hidden;
+  -webkit-font-smoothing:antialiased;
 }
 
-/* ── Header ──────────────────────────────────────────────────────────────────── */
-.header {
-  grid-column: 1 / -1;
-  background: var(--rh-dark);
-  color: var(--white);
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  gap: 0;
-  border-bottom: 3px solid var(--rh-red);
-  flex-shrink: 0;
+/* ── Shell Grid ── */
+.shell{
+  display:grid;
+  grid-template-rows:var(--hh) 1fr;
+  grid-template-columns:var(--sw) 1fr var(--rw);
+  height:100vh;
 }
 
-.header-title {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: var(--white);
-  white-space: nowrap;
+/* ══════════════════════════════════════════════════════
+   HEADER
+══════════════════════════════════════════════════════ */
+.hdr{
+  grid-column:1/-1;
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 16px;gap:0;
+  position:relative;z-index:20;
+}
+/* Red top accent line */
+.hdr::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--red);
 }
 
-.header-ver {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--rh-gray-3);
-  margin-left: 14px;
-  padding-left: 14px;
-  border-left: 1px solid var(--rh-gray-7);
+.hdr-logo{
+  width:30px;height:30px;border-radius:var(--r);
+  background:var(--red);display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:10px;font-weight:600;color:#fff;
+  letter-spacing:-.02em;flex-shrink:0;
+  box-shadow:0 0 16px var(--red-glow);
 }
 
-.header-spacer { flex: 1; }
+.hdr-brand{margin-left:10px}
+.hdr-title{
+  font-size:13px;font-weight:600;color:var(--tx);letter-spacing:-.02em;line-height:1.1;
+}
+.hdr-sub{font-size:10px;color:var(--tx3);font-family:var(--mono);margin-top:1px}
 
-.header-meta {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--rh-gray-3);
+.hdr-div{width:1px;height:22px;background:var(--border2);margin:0 16px;flex-shrink:0}
+
+.hdr-cluster{
+  font-family:var(--mono);font-size:11px;color:var(--tx2);
+  background:var(--bg3);border:1px solid var(--border);
+  padding:3px 10px;border-radius:20px;display:none;
 }
 
-/* Run status pill */
-.run-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-family: var(--mono);
-  padding: 4px 10px;
-  border-radius: 20px;
-  border: 1px solid var(--rh-gray-7);
-  background: transparent;
-  color: var(--rh-gray-3);
-  white-space: nowrap;
-}
-.run-pill.running { background: #0c2e0c; border-color: #2a5e2a; color: #7fd17f; }
-.run-pill.pass    { background: #0c2e10; border-color: #1f5e24; color: #7fd17f; }
-.run-pill.warn    { background: #332500; border-color: #5e4000; color: #f5c518; }
-.run-pill.fail    { background: #330000; border-color: #6e0000; color: #ff7070; }
+.hdr-space{flex:1}
 
-.pill-dot {
-  width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0;
+/* Status pill */
+.pill{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  padding:5px 12px;border-radius:20px;letter-spacing:.05em;
+  border:1px solid var(--border2);background:var(--bg3);color:var(--tx3);
+  transition:all .3s ease;
 }
+.pill-dot{width:6px;height:6px;border-radius:50%;background:var(--tx3);flex-shrink:0;transition:background .3s}
+.pill.running{border-color:var(--run-bd);background:var(--run-bg);color:var(--run)}
+.pill.running .pill-dot{background:var(--run);animation:blink 1s infinite}
+.pill.pass{border-color:var(--pass-bd);background:var(--pass-bg);color:var(--pass)}
+.pill.pass .pill-dot{background:var(--pass)}
+.pill.warn{border-color:var(--warn-bd);background:var(--warn-bg);color:var(--warn)}
+.pill.warn .pill-dot{background:var(--warn)}
+.pill.fail{border-color:var(--fail-bd);background:var(--fail-bg);color:var(--fail)}
+.pill.fail .pill-dot{background:var(--fail)}
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────────── */
-.sidebar {
-  background: var(--bg-panel);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
-.sidebar-head {
-  padding: 10px 14px 8px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  background: var(--bg-alt);
+/* ══════════════════════════════════════════════════════
+   SIDEBAR
+══════════════════════════════════════════════════════ */
+.sidebar{
+  background:var(--bg2);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
 }
 
-.sidebar-body { overflow-y: auto; flex: 1; }
-
-/* Check item */
-.check-item {
-  display: grid;
-  grid-template-columns: 36px 1fr;
-  align-items: center;
-  padding: 0;
-  border-left: 3px solid transparent;
-  border-bottom: 1px solid var(--rh-gray-1);
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--text-muted);
-  min-height: 34px;
+.sb-hdr{
+  padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.sb-hdr-lbl{
+  font-size:9px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--tx3);font-family:var(--mono);
+}
+.sb-hdr-count{
+  font-family:var(--mono);font-size:9px;color:var(--tx3);
+  background:var(--bg3);border:1px solid var(--border);
+  padding:1px 7px;border-radius:10px;
 }
 
-.check-item:hover { background: var(--rh-gray-1); color: var(--text); }
+.sb-body{overflow-y:auto;flex:1}
 
-.check-item.active {
-  border-left-color: var(--rh-red);
-  background: var(--bg-panel);
-  color: var(--text);
-  font-weight: 600;
+/* Check row */
+.ck{
+  display:flex;align-items:stretch;
+  border-bottom:1px solid var(--border);
+  cursor:pointer;min-height:32px;
+  border-left:2px solid transparent;
+  transition:background .12s,border-left-color .12s;
 }
-
-/* Status variants */
-.check-item.pass  { color: var(--pass-text); }
-.check-item.warn  { color: var(--warn-text); }
-.check-item.fail  { color: var(--fail-text); background: var(--fail-bg); }
-.check-item.fail:hover { background: #ffe8e8; }
-.check-item.skip  { color: var(--rh-gray-3); }
-.check-item.running { color: var(--run-text); background: var(--run-bg); }
-
-.check-item.fail.active  { border-left-color: var(--rh-red); }
-.check-item.warn.active  { border-left-color: #c07a00; }
-.check-item.pass.active  { border-left-color: var(--pass-text); }
-.check-item.running.active { border-left-color: var(--rh-red); }
+.ck:hover{background:var(--bg3)}
+.ck.active{border-left-color:var(--red);background:var(--red-dim)}
+.ck.pass{border-left-color:var(--pass)}
+.ck.pass:hover{background:var(--pass-bg)}
+.ck.warn{border-left-color:var(--warn);background:var(--warn-bg)}
+.ck.warn:hover{background:rgba(245,158,11,.13)}
+.ck.fail{border-left-color:var(--fail);background:var(--fail-bg)}
+.ck.fail:hover{background:rgba(239,68,68,.13)}
+.ck.skip{opacity:.45}
+.ck.running{border-left-color:var(--run);background:var(--run-bg)}
 
 /* Badge column */
-.check-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 700;
-  border-right: 1px solid var(--border);
-  color: inherit;
-  background: rgba(0,0,0,0.03);
-  padding: 4px 2px;
-  min-height: 34px;
+.ck-bdg{
+  width:38px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.04em;
+  border-right:1px solid var(--border);
+  color:var(--tx3);background:var(--bg3);
+  transition:all .12s;
+}
+.ck.pass .ck-bdg{color:var(--pass);background:var(--pass-bg);border-color:var(--pass-bd)}
+.ck.fail .ck-bdg{color:var(--fail);background:var(--fail-bg);border-color:var(--fail-bd)}
+.ck.warn .ck-bdg{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-bd)}
+.ck.skip .ck-bdg{color:var(--skip-tx);background:var(--bg3)}
+.ck.running .ck-bdg{color:var(--run);background:var(--run-bg);border-color:var(--run-bd)}
+
+/* Label */
+.ck-lbl{
+  flex:1;padding:5px 10px;
+  font-size:11px;line-height:1.3;color:var(--tx2);
+  align-self:center;font-family:var(--mono);
+}
+.ck.fail .ck-lbl{color:var(--fail);font-weight:500}
+.ck.warn .ck-lbl{color:var(--warn)}
+.ck.pass .ck-lbl{color:var(--tx2)}
+.ck.running .ck-lbl{color:var(--run);font-weight:500}
+
+/* Sidebar stats strip */
+.sb-stats{
+  flex-shrink:0;border-top:1px solid var(--border2);
+  display:grid;grid-template-columns:1fr 1fr;gap:0;
+  background:var(--border);
+}
+.sb-stat{
+  background:var(--bg2);padding:9px 0;text-align:center;
+  transition:background .2s;
+}
+.sb-stat:first-child{border-right:1px solid var(--border)}
+.sb-stat:nth-child(3){border-top:1px solid var(--border);border-right:1px solid var(--border)}
+.sb-stat:nth-child(4){border-top:1px solid var(--border)}
+.st-val{
+  display:block;font-family:var(--mono);font-size:20px;font-weight:600;
+  color:var(--tx3);line-height:1;transition:color .3s;
+}
+.st-val.fail{color:var(--fail)}
+.st-val.warn{color:var(--warn)}
+.st-val.pass{color:var(--pass)}
+.st-val.run {color:var(--run)}
+.st-key{
+  display:block;font-size:8.5px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;
+  color:var(--tx3);margin-top:3px;font-family:var(--mono);
 }
 
-.check-item.pass  .check-badge { background: var(--pass-bg); color: var(--pass-text); border-color: var(--pass-border); }
-.check-item.fail  .check-badge { background: var(--fail-bg); color: var(--fail-text); border-color: var(--fail-border); }
-.check-item.warn  .check-badge { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-border); }
-.check-item.skip  .check-badge { background: var(--skip-bg); color: var(--skip-text); border-color: var(--skip-border); }
-.check-item.running .check-badge { background: var(--run-bg); color: var(--run-text); border-color: var(--run-border); }
-
-.check-label {
-  padding: 6px 10px 6px 10px;
-  line-height: 1.35;
-}
-
-/* Sidebar summary section */
-.sidebar-summary {
-  flex-shrink: 0;
-  border-top: 1px solid var(--border);
-  padding: 10px 14px;
-  background: var(--bg-alt);
-  font-size: 11px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-.ss-box {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 6px 8px;
-  text-align: center;
-}
-
-.ss-val {
-  font-family: var(--mono);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-muted);
-  line-height: 1;
-}
-.ss-val.fail { color: var(--fail-text); }
-.ss-val.warn { color: var(--warn-text); }
-.ss-val.ok   { color: var(--pass-text); }
-
-.ss-key {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-
-/* ── Main terminal pane ──────────────────────────────────────────────────────── */
-.main {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--white);
-  border-right: 1px solid var(--border);
+/* ══════════════════════════════════════════════════════
+   MAIN (TERMINAL)
+══════════════════════════════════════════════════════ */
+.main{
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--bg);border-right:1px solid var(--border);
 }
 
 /* Toolbar */
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-alt);
-  flex-shrink: 0;
+.tb{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px;border-bottom:1px solid var(--border);
+  background:var(--bg2);flex-shrink:0;
 }
-
-.t-right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.tb-r{margin-left:auto;display:flex;align-items:center;gap:12px}
+.asl{
+  display:flex;align-items:center;gap:5px;
+  font-size:11px;color:var(--tx3);cursor:pointer;user-select:none;
+  font-family:var(--mono);
 }
-
-.autoscroll-lbl {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--text-muted);
-  cursor: pointer;
-  user-select: none;
-}
-.autoscroll-lbl input { accent-color: var(--rh-red); cursor: pointer; }
+.asl input{accent-color:var(--red);cursor:pointer}
 
 /* Buttons */
-.btn {
-  font-family: var(--font);
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: var(--r);
-  border: 1px solid transparent;
-  cursor: pointer;
-  padding: 6px 16px;
-  white-space: nowrap;
-  line-height: 1;
+.btn{
+  font-family:var(--sans);font-size:12px;font-weight:600;
+  border-radius:var(--r);border:1px solid transparent;
+  cursor:pointer;padding:6px 16px;white-space:nowrap;line-height:1;
+  transition:all .12s;
 }
-
-.btn-run {
-  background: var(--rh-red);
-  color: var(--white);
-  border-color: var(--rh-red-dk);
-}
-.btn-run:hover:not(:disabled)    { background: var(--rh-red-dk); }
-.btn-run:disabled                { background: var(--rh-gray-3); border-color: var(--rh-gray-3); color: var(--rh-gray-5); cursor: not-allowed; }
-
-.btn-stop {
-  background: var(--white);
-  color: var(--fail-text);
-  border-color: var(--fail-border);
-}
-.btn-stop:hover:not(:disabled)   { background: var(--fail-bg); }
-.btn-stop:disabled               { opacity: 0.4; cursor: not-allowed; }
-
-.btn-ghost {
-  background: var(--white);
-  color: var(--text-muted);
-  border-color: var(--border);
-}
-.btn-ghost:hover:not(:disabled)  { background: var(--rh-gray-1); color: var(--text); }
-
-.btn-sm { padding: 4px 12px; font-size: 11px; }
+.btn-pri{background:var(--red);color:#fff;border-color:var(--red2)}
+.btn-pri:hover:not(:disabled){background:var(--red2);box-shadow:0 0 12px var(--red-glow)}
+.btn-pri:disabled{background:var(--bg4);border-color:var(--border2);color:var(--tx3);cursor:not-allowed}
+.btn-ghost{background:var(--bg3);color:var(--tx2);border-color:var(--border2)}
+.btn-ghost:hover:not(:disabled){background:var(--bg4);color:var(--tx);border-color:var(--tx3)}
+.btn-ghost:disabled{opacity:.35;cursor:not-allowed}
+.btn-danger{background:var(--bg3);color:var(--fail);border-color:var(--fail-bd)}
+.btn-danger:hover:not(:disabled){background:var(--fail-bg)}
+.btn-danger:disabled{opacity:.3;cursor:not-allowed}
+.btn-sm{padding:4px 12px;font-size:11px}
 
 /* Progress bar */
-.prog-track {
-  height: 2px;
-  background: var(--rh-gray-1);
-  flex-shrink: 0;
-}
-.prog-fill {
-  height: 100%;
-  background: var(--rh-red);
-  width: 0;
-  transition: width 0.5s ease;
+.prog{height:2px;background:var(--border);flex-shrink:0;overflow:hidden}
+.prog-bar{
+  height:100%;background:var(--red);width:0;
+  transition:width .7s ease;
+  box-shadow:0 0 8px var(--red);
 }
 
-/* Terminal output */
-.terminal {
-  flex: 1;
-  overflow-y: auto;
-  padding: 14px 18px;
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.7;
-  background: var(--white);
+/* Terminal area */
+.term{
+  flex:1;overflow-y:auto;padding:16px 20px;
+  font-family:var(--mono);font-size:12px;line-height:1.85;
+  background:var(--bg);color:var(--tx);
 }
+.ln{display:block;white-space:pre-wrap;word-break:break-all;min-height:1em}
 
-.line {
-  display: block;
-  white-space: pre-wrap;
-  word-break: break-all;
-  min-height: 1em;
-}
-
-/* ANSI colours — tuned for white background readability */
-.r  { color: #b30000; }
-.g  { color: #1a6b1a; }
-.y  { color: #5e4200; }
-.bl { color: #004a99; }
-.m  { color: #7b36a0; }
-.c  { color: #006073; }
-.w  { color: #1b1d21; }
-.o  { color: #8a4500; }
-.b  { font-weight: 700; }
+/* ANSI color classes — tuned for dark bg */
+.r{color:var(--t-red)}
+.g{color:var(--t-green)}
+.y{color:var(--t-yellow)}
+.bl{color:var(--t-blue)}
+.m{color:var(--t-magenta)}
+.c{color:var(--t-cyan)}
+.w{color:var(--t-white)}
+.o{color:var(--t-orange)}
+.b{font-weight:600}
 
 /* Empty state */
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 10px;
-  color: var(--text-muted);
+.empty{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;height:100%;gap:14px;color:var(--tx3);
+}
+.empty-gfx{
+  width:64px;height:64px;
+  border:1px solid var(--border2);border-radius:var(--r2);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  color:var(--tx3);
+  background:var(--bg2);
+  position:relative;overflow:hidden;
+}
+.empty-gfx::before{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(
+    -45deg,transparent,transparent 3px,
+    rgba(255,255,255,.015) 3px,rgba(255,255,255,.015) 4px
+  );
+}
+.empty p{font-size:13px;font-weight:500;color:var(--tx2)}
+.empty small{font-size:11px;font-family:var(--mono);color:var(--tx3)}
+
+/* Cursor */
+.cursor{
+  display:inline-block;width:7px;height:13px;
+  background:var(--red);vertical-align:middle;margin-left:2px;
+  border-radius:1px;animation:cursor-blink .9s step-end infinite;
+}
+@keyframes cursor-blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ══════════════════════════════════════════════════════
+   RIGHT PANEL
+══════════════════════════════════════════════════════ */
+.rp{
+  background:var(--bg2);
+  display:flex;flex-direction:column;overflow:hidden;
 }
 
-.empty-box {
-  width: 56px; height: 56px;
-  border: 2px solid var(--border);
-  border-radius: var(--r);
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--mono);
-  font-size: 20px;
-  color: var(--rh-gray-3);
+.rp-sect{
+  padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.rp-title{
+  font-size:9px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--tx3);
+  font-family:var(--mono);margin-bottom:10px;
 }
 
-.empty p { font-size: 13px; color: var(--text-muted); }
-
-/* Cursor block (running indicator in terminal) */
-.cursor-block {
-  display: inline-block;
-  width: 8px; height: 13px;
-  background: var(--rh-red);
-  vertical-align: middle;
-  margin-left: 2px;
+/* ── Auth Card ── */
+.auth{
+  border:1px solid var(--border2);border-radius:var(--r2);
+  background:var(--bg3);padding:10px 12px;
+  font-family:var(--mono);font-size:11px;
+  transition:border-color .3s;
 }
-
-/* ── Right panel ─────────────────────────────────────────────────────────────── */
-.rpanel {
-  background: var(--bg-alt);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.auth.ok{border-color:var(--pass-bd)}
+.auth.fail{border-color:var(--fail-bd);background:var(--fail-bg)}
+.auth-status{
+  font-size:11px;font-weight:600;margin-bottom:8px;
+  display:flex;align-items:center;gap:7px;color:var(--tx3);
 }
-
-.rp-section {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+.auth-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--border2);flex-shrink:0;
 }
+.auth.ok  .auth-status{color:var(--pass)}
+.auth.ok  .auth-dot{background:var(--pass);box-shadow:0 0 6px var(--pass)}
+.auth.fail .auth-status{color:var(--fail)}
+.auth.fail .auth-dot{background:var(--fail)}
+.auth-row{display:flex;gap:8px;margin-top:4px;line-height:1.4;font-size:10.5px}
+.auth-k{color:var(--tx3);flex-shrink:0;width:48px}
+.auth-v{color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-.rp-head {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 10px;
+/* ── Score Cards ── */
+.score-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.sc{
+  border:1px solid var(--border2);border-radius:var(--r2);
+  background:var(--bg3);padding:10px 12px;
+  transition:all .3s ease;
 }
-
-/* Result card */
-.result-card {
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 12px 14px;
-  background: var(--bg-panel);
+.sc.sc-fail{border-color:var(--fail-bd);background:var(--fail-bg)}
+.sc.sc-warn{border-color:var(--warn-bd);background:var(--warn-bg)}
+.sc.sc-pass{border-color:var(--pass-bd);background:var(--pass-bg)}
+.sc-val{
+  display:block;font-family:var(--mono);font-size:28px;font-weight:600;
+  line-height:1;color:var(--tx3);transition:color .3s;
 }
-.result-card.pass { border-color: var(--pass-border); background: var(--pass-bg); }
-.result-card.warn { border-color: var(--warn-border); background: var(--warn-bg); }
-.result-card.fail { border-color: var(--fail-border); background: var(--fail-bg); }
-.result-card.running { border-color: var(--run-border); background: var(--run-bg); }
-
-.result-label {
-  font-size: 14px;
-  font-weight: 700;
-  margin-bottom: 4px;
+.sc.sc-fail .sc-val{color:var(--fail)}
+.sc.sc-warn .sc-val{color:var(--warn)}
+.sc.sc-pass .sc-val{color:var(--pass)}
+.sc-lbl{
+  display:block;font-size:9px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;
+  color:var(--tx3);margin-top:4px;font-family:var(--mono);
 }
-.result-label.pass    { color: var(--pass-text); }
-.result-label.warn    { color: var(--warn-text); }
-.result-label.fail    { color: var(--fail-text); }
-.result-label.running { color: var(--run-text); }
-.result-label.idle    { color: var(--text-muted); }
+.sc.sc-fail .sc-lbl{color:rgba(239,68,68,.7)}
+.sc.sc-warn .sc-lbl{color:rgba(245,158,11,.7)}
+.sc.sc-pass .sc-lbl{color:rgba(34,197,94,.7)}
 
-.result-sub { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
-
-/* Auth card */
-.auth-card {
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 10px 12px;
-  background: var(--bg-panel);
-  font-family: var(--mono);
-  font-size: 11px;
+/* ── Readiness Card ── */
+.readiness{
+  border:1px solid var(--border2);border-radius:var(--r2);
+  background:var(--bg3);padding:12px;
+  transition:all .3s ease;
 }
-.auth-ok   { border-color: var(--pass-border); }
-.auth-fail { border-color: var(--fail-border); background: var(--fail-bg); }
+.readiness.pass{border-color:var(--pass-bd);background:var(--pass-bg)}
+.readiness.warn{border-color:var(--warn-bd);background:var(--warn-bg)}
+.readiness.fail{border-color:var(--fail-bd);background:var(--fail-bg)}
+.readiness.running{border-color:var(--run-bd);background:var(--run-bg)}
 
-.auth-row { display: flex; gap: 6px; margin-top: 4px; color: var(--text-muted); }
-.auth-row span { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
-.auth-label { color: var(--text-muted); flex-shrink: 0; }
+.rd-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.rd-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--border2);flex-shrink:0;transition:all .3s;
+}
+.readiness.pass    .rd-dot{background:var(--pass);box-shadow:0 0 8px var(--pass)}
+.readiness.warn    .rd-dot{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+.readiness.fail    .rd-dot{background:var(--fail);box-shadow:0 0 8px var(--fail)}
+.readiness.running .rd-dot{background:var(--run);animation:blink 1s infinite}
+
+.rd-badge{
+  font-family:var(--mono);font-size:13px;font-weight:600;
+  color:var(--tx3);transition:color .3s;
+}
+.readiness.pass    .rd-badge{color:var(--pass)}
+.readiness.warn    .rd-badge{color:var(--warn)}
+.readiness.fail    .rd-badge{color:var(--fail)}
+.readiness.running .rd-badge{color:var(--run)}
+.rd-sub{
+  font-size:11px;color:var(--tx3);line-height:1.4;
+  font-family:var(--mono);
+}
 
 /* Timing row */
-.timing {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 8px;
+.timing{
+  font-family:var(--mono);font-size:10.5px;color:var(--tx3);
+  margin-top:8px;display:none;line-height:1.6;
 }
-.timing b { color: var(--text); font-weight: 500; }
+.timing span{color:var(--tx2)}
 
-/* Downloads */
-.dl-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 8px 10px;
-  margin-bottom: 6px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  font-family: var(--font);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text);
-  cursor: pointer;
-  text-decoration: none;
+/* ── Downloads ── */
+.dl{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 11px;margin-bottom:5px;
+  background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);
+  font-size:11.5px;font-weight:500;color:var(--tx2);
+  text-decoration:none;cursor:pointer;transition:all .12s;
+  font-family:var(--mono);
 }
-.dl-btn:hover:not(:disabled) { border-color: var(--rh-red); color: var(--rh-red); }
-.dl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.dl-badge {
-  font-size: 10px;
-  font-family: var(--mono);
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: var(--rh-gray-1);
-  color: var(--text-muted);
+.dl:last-child{margin-bottom:0}
+.dl:hover:not([aria-disabled=true]){
+  border-color:var(--red);color:var(--tx);
+  background:var(--red-dim);
+}
+.dl[aria-disabled=true]{opacity:.3;pointer-events:none}
+.dl-tag{
+  font-size:9px;font-weight:700;letter-spacing:.06em;
+  padding:2px 7px;border-radius:3px;
+  background:var(--bg4);color:var(--tx3);
+  border:1px solid var(--border2);
 }
 
-/* Artifact files */
-.artifact-list { flex: 1; overflow-y: auto; padding: 10px 14px; }
-
-.art-item {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 8px;
-  margin-bottom: 5px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  font-size: 11px;
+/* ── Artifacts ── */
+.art-list{flex:1;overflow-y:auto;padding:8px 14px}
+.art{
+  display:flex;align-items:center;gap:7px;padding:7px 10px;margin-bottom:4px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);
+  font-size:11px;transition:border-color .12s;
 }
-.art-item:hover { border-color: var(--border-dk); }
-
-.art-name { font-family: var(--mono); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.art-size { font-family: var(--mono); color: var(--text-muted); font-size: 10px; flex-shrink: 0; }
-.art-dl {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--rh-red);
-  border: 1px solid var(--fail-border);
-  border-radius: 3px;
-  padding: 2px 6px;
-  text-decoration: none;
-  flex-shrink: 0;
+.art:hover{border-color:var(--border2)}
+.art-name{font-family:var(--mono);color:var(--tx2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px}
+.art-sz{font-family:var(--mono);color:var(--tx3);font-size:9.5px;flex-shrink:0}
+.art-dl{
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  color:var(--red);border:1px solid var(--fail-bd);
+  border-radius:3px;padding:2px 7px;text-decoration:none;
+  flex-shrink:0;letter-spacing:.04em;transition:all .12s;
 }
-.art-dl:hover { background: var(--fail-bg); }
-
-.no-data { font-size: 12px; color: var(--text-muted); font-family: var(--mono); text-align: center; padding: 16px 0; }
-
-/* ── Summary panel (bottom of right panel) ───────────────────────────────────── */
-.summary-panel {
-  border-top: 1px solid var(--border);
-  padding: 12px 14px;
-  flex-shrink: 0;
-  background: var(--bg-panel);
+.art-dl:hover{background:var(--fail-bg)}
+.no-data{
+  font-family:var(--mono);font-size:11px;color:var(--tx3);
+  text-align:center;padding:20px 0;
 }
 
-/* ── Scrollbars ───────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: var(--bg-alt); }
-::-webkit-scrollbar-thumb { background: var(--border-dk); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--rh-gray-5); }
+/* ── Scrollbars ── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--tx3)}
 
-/* ── Responsive ───────────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  :root { --sidebar: 0px; --rpanel: 0px; }
-  .sidebar, .rpanel { display: none; }
-}
+/* ── Responsive ── */
+@media(max-width:900px){:root{--sw:0px;--rw:0px}.sidebar,.rp{display:none}}
 </style>
 </head>
 <body>
+<div class="shell">
 
-<div class="layout">
-
-  <!-- ══ Header ══════════════════════════════════════════════════════════════ -->
-  <header class="header">
-    <span class="header-title">OCP Upgrade Health Check</span>
-    <span class="header-ver">ocp-sysops-kit v6.0</span>
-    <div class="header-spacer"></div>
-    <div class="header-meta">
-      <span id="hostSpan" style="display:none"></span>
-      <span class="run-pill idle" id="runPill">
-        <span class="pill-dot"></span>
-        <span id="pillText">Idle</span>
-      </span>
+  <!-- ═══ HEADER ═══ -->
+  <header class="hdr">
+    <div class="hdr-logo">OCP</div>
+    <div class="hdr-brand">
+      <div class="hdr-title">Upgrade Health Check</div>
+      <div class="hdr-sub">v7.0 &nbsp;·&nbsp; 25 checks</div>
+    </div>
+    <div class="hdr-div"></div>
+    <span class="hdr-cluster" id="hdrCluster"></span>
+    <div class="hdr-space"></div>
+    <div class="pill" id="pill">
+      <span class="pill-dot"></span>
+      <span id="pillTxt">Idle</span>
     </div>
   </header>
 
-  <!-- ══ Left sidebar ════════════════════════════════════════════════════════ -->
+  <!-- ═══ SIDEBAR ═══ -->
   <nav class="sidebar">
-    <div class="sidebar-head">Checks (22)</div>
-    <div class="sidebar-body" id="checkNav"></div>
-    <div class="sidebar-summary">
-      <div class="ss-box">
-        <div class="ss-val" id="sbFail">--</div>
-        <div class="ss-key">Failures</div>
-      </div>
-      <div class="ss-box">
-        <div class="ss-val" id="sbWarn">--</div>
-        <div class="ss-key">Warnings</div>
-      </div>
-      <div class="ss-box">
-        <div class="ss-val" id="sbLines">--</div>
-        <div class="ss-key">Lines</div>
-      </div>
-      <div class="ss-box">
-        <div class="ss-val" id="sbTime">--</div>
-        <div class="ss-key">Duration</div>
-      </div>
+    <div class="sb-hdr">
+      <span class="sb-hdr-lbl">Checks</span>
+      <span class="sb-hdr-count">25</span>
+    </div>
+    <div class="sb-body" id="checkNav"></div>
+    <div class="sb-stats">
+      <div class="sb-stat"><span class="st-val" id="sbFail">--</span><span class="st-key">Failures</span></div>
+      <div class="sb-stat"><span class="st-val" id="sbWarn">--</span><span class="st-key">Warnings</span></div>
+      <div class="sb-stat"><span class="st-val" id="sbLines">--</span><span class="st-key">Lines</span></div>
+      <div class="sb-stat"><span class="st-val" id="sbTime">--</span><span class="st-key">Elapsed</span></div>
     </div>
   </nav>
 
-  <!-- ══ Terminal ════════════════════════════════════════════════════════════ -->
+  <!-- ═══ TERMINAL ═══ -->
   <main class="main">
-
-    <div class="toolbar">
-      <button class="btn btn-run" id="btnRun" onclick="doRun()">Run Health Check</button>
-      <button class="btn btn-stop btn-sm" id="btnStop" onclick="doStop()" disabled>Stop</button>
-      <button class="btn btn-ghost btn-sm" onclick="doClear()">Clear</button>
-      <div class="t-right">
-        <label class="autoscroll-lbl">
-          <input type="checkbox" id="autoScroll" checked>
-          Auto-scroll
-        </label>
+    <div class="tb">
+      <button class="btn btn-pri"           id="btnRun"  onclick="doRun()">Run Health Check</button>
+      <button class="btn btn-danger btn-sm" id="btnStop" onclick="doStop()" disabled>Stop</button>
+      <button class="btn btn-ghost  btn-sm"              onclick="doClear()">Clear</button>
+      <div class="tb-r">
+        <label class="asl"><input type="checkbox" id="autoScroll" checked>Auto-scroll</label>
       </div>
     </div>
-
-    <div class="prog-track">
-      <div class="prog-fill" id="progFill"></div>
-    </div>
-
-    <div class="terminal" id="terminal">
+    <div class="prog"><div class="prog-bar" id="progBar"></div></div>
+    <div class="term" id="terminal">
       <div class="empty" id="emptyState">
-        <div class="empty-box">HC</div>
-        <p>Click <strong>Run Health Check</strong> to begin</p>
-        <p style="font-size:11px;margin-top:4px;">Results stream automatically after startup</p>
+        <div class="empty-gfx">HC</div>
+        <p>Ready for pre-flight check</p>
+        <small>Click "Run Health Check" to begin</small>
       </div>
     </div>
-
   </main>
 
-  <!-- ══ Right panel ═════════════════════════════════════════════════════════ -->
-  <aside class="rpanel">
+  <!-- ═══ RIGHT PANEL ═══ -->
+  <aside class="rp">
 
-    <!-- Auth status -->
-    <div class="rp-section">
-      <div class="rp-head">Cluster Auth</div>
-      <div class="auth-card" id="authCard">
-        <div style="color:var(--text-muted);font-family:var(--mono);font-size:11px;">Loading...</div>
+    <!-- Auth -->
+    <div class="rp-sect">
+      <div class="rp-title">Cluster Auth</div>
+      <div class="auth" id="authCard">
+        <div style="color:var(--tx3);font-family:var(--mono);font-size:11px">Checking…</div>
       </div>
     </div>
 
-    <!-- Result -->
-    <div class="rp-section">
-      <div class="rp-head">Result</div>
-      <div class="result-card" id="resultCard">
-        <div class="result-label idle" id="resultLabel">Not run</div>
-        <div class="result-sub" id="resultSub">Run the check to see results</div>
+    <!-- Metrics -->
+    <div class="rp-sect">
+      <div class="rp-title">Run Metrics</div>
+      <div class="score-grid">
+        <div class="sc" id="scFail">
+          <span class="sc-val" id="scFailVal">--</span>
+          <span class="sc-lbl">Failures</span>
+        </div>
+        <div class="sc" id="scWarn">
+          <span class="sc-val" id="scWarnVal">--</span>
+          <span class="sc-lbl">Warnings</span>
+        </div>
       </div>
-      <div class="timing" id="timing" style="display:none">
-        Start: <b id="tStart"></b>&nbsp;&nbsp;Duration: <b id="tDuration">0s</b>
+    </div>
+
+    <!-- Readiness -->
+    <div class="rp-sect">
+      <div class="rp-title">Upgrade Readiness</div>
+      <div class="readiness" id="resCard">
+        <div class="rd-top">
+          <span class="rd-dot"></span>
+          <span class="rd-badge" id="resLbl">Not run</span>
+        </div>
+        <div class="rd-sub" id="resSub">Run the check to see results</div>
+      </div>
+      <div class="timing" id="timing">
+        Start: <span id="tStart">--</span>&nbsp;&nbsp;Duration: <span id="tDur">0s</span>
       </div>
     </div>
 
     <!-- Downloads -->
-    <div class="rp-section">
-      <div class="rp-head">Downloads</div>
-      <a class="dl-btn" id="dlLog" href="/api/download/log" download style="pointer-events:none;opacity:0.4">
-        Full Run Log (.txt)
-        <span class="dl-badge">TXT</span>
-      </a>
-      <a class="dl-btn" id="dlSum" href="/api/download/summary" download style="pointer-events:none;opacity:0.4">
-        Summary Report (.json)
-        <span class="dl-badge">JSON</span>
-      </a>
+    <div class="rp-sect">
+      <div class="rp-title">Export</div>
+      <a class="dl" id="dlLog" href="/api/download/log"     download aria-disabled="true">Full Run Log     <span class="dl-tag">TXT</span></a>
+      <a class="dl" id="dlSum" href="/api/download/summary" download aria-disabled="true">Summary Report   <span class="dl-tag">JSON</span></a>
     </div>
 
-    <!-- Artifact files -->
-    <div class="rp-section" style="border-bottom:none;padding-bottom:4px;">
-      <div class="rp-head">Artifact Files</div>
+    <!-- Artifacts -->
+    <div class="rp-sect" style="border-bottom:none;padding-bottom:4px">
+      <div class="rp-title">Artifact Files</div>
     </div>
-    <div class="artifact-list" id="artifactList">
+    <div class="art-list" id="artList">
       <div class="no-data">No artifacts yet</div>
     </div>
 
   </aside>
-
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════════
-// Constants
-// ═══════════════════════════════════════════════════════════════════
+'use strict';
+
+// ── Sections ───────────────────────────────────────────────────────────────────
 const SECTIONS = [
   ['01','Cluster Version'],      ['02','Cluster Operators'],
   ['03','OLM Operators'],        ['04','Node Status'],
@@ -693,379 +631,302 @@ const SECTIONS = [
   ['17','PDB Analysis'],         ['18','PVC / PV Health'],
   ['19','Disk Usage'],           ['20','Events'],
   ['21','Route Health'],         ['22','EgressIP'],
+  ['23','HW Compatibility'],     ['24','Cloud Credentials'],
+  ['25','CSI Drivers'],
 ];
+const BADGE = {pass:'OK',fail:'FAIL',warn:'WARN',skip:'SKIP',running:'RUN',idle:'--'};
 
-// Status -> badge text
-const BADGE = { pass:'OK', fail:'FAIL', warn:'WARN', skip:'SKIP', running:'...', idle:'--' };
+// ── State ──────────────────────────────────────────────────────────────────────
+let nLines=0, running=false, startTime=null, timerIv=null, pollIv=null;
 
-// ═══════════════════════════════════════════════════════════════════
-// App state
-// ═══════════════════════════════════════════════════════════════════
-let linesRendered  = 0;     // how many lines we've rendered so far
-let running        = false;
-let startTime      = null;
-let timerIv        = null;
-let pollIv         = null;
-
-// ═══════════════════════════════════════════════════════════════════
-// Init
-// ═══════════════════════════════════════════════════════════════════
+// ── Boot ───────────────────────────────────────────────────────────────────────
 async function init() {
   buildNav();
   await loadAuth();
-
-  // Check if a run is already in progress or completed (e.g. auto-run on start)
   await poll();
   startPolling();
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Nav build
-// ═══════════════════════════════════════════════════════════════════
+// ── Sidebar Nav ────────────────────────────────────────────────────────────────
 function buildNav() {
   const nav = document.getElementById('checkNav');
   nav.innerHTML = '';
   SECTIONS.forEach(([idx, label]) => {
     const d = document.createElement('div');
-    d.className = 'check-item';
-    d.id = `ci-${idx}`;
-    d.innerHTML =
-      `<div class="check-badge" id="cb-${idx}">${idx}</div>` +
-      `<div class="check-label">${label}</div>`;
+    d.className = 'ck'; d.id = `ck-${idx}`;
+    d.innerHTML = `<div class="ck-bdg" id="cb-${idx}">${idx}</div><div class="ck-lbl">${label}</div>`;
     d.addEventListener('click', () => {
-      const a = document.getElementById(`anchor-${idx}`);
-      if (a) a.scrollIntoView({ behavior:'smooth', block:'start' });
+      const a = document.getElementById(`anc-${idx}`);
+      if (a) a.scrollIntoView({behavior:'smooth',block:'start'});
     });
     nav.appendChild(d);
   });
 }
 
-function setCheckStatus(idx, status) {
-  const item  = document.getElementById(`ci-${idx}`);
-  const badge = document.getElementById(`cb-${idx}`);
+function setCheck(idx, status) {
+  const item = document.getElementById(`ck-${idx}`);
+  const bdg  = document.getElementById(`cb-${idx}`);
   if (!item) return;
-
-  // Remove all status classes, keep 'check-item'
-  item.className = `check-item ${status}`;
-  if (badge) badge.textContent = BADGE[status] || idx;
+  item.className = `ck ${status}`;
+  if (bdg) bdg.textContent = BADGE[status] ?? idx;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Auth
-// ═══════════════════════════════════════════════════════════════════
+// ── Auth ───────────────────────────────────────────────────────────────────────
 async function loadAuth() {
-  let auth = {};
-  try { auth = await fetch('/api/auth').then(r => r.json()); } catch (_) {}
-
+  let a = {};
+  try { a = await fetch('/api/auth').then(r => r.json()); } catch(_) {}
   const card = document.getElementById('authCard');
-  if (auth.ok) {
-    card.className = 'auth-card auth-ok';
+  if (a.ok) {
+    const srv = (a.server||'').replace(/^https?:\/\//,'');
+    card.className = 'auth ok';
     card.innerHTML =
-      `<div style="color:var(--pass-text);font-weight:700;font-size:12px;margin-bottom:6px;">Connected</div>` +
-      `<div class="auth-row"><span class="auth-label">User&nbsp;&nbsp;:</span><span>${auth.user || '--'}</span></div>` +
-      `<div class="auth-row"><span class="auth-label">Server:</span><span title="${auth.server}">${(auth.server||'').replace('https://','')}</span></div>` +
-      `<div class="auth-row"><span class="auth-label">Method:</span><span>${auth.method || '--'}</span></div>`;
+      `<div class="auth-status"><span class="auth-dot"></span>Connected</div>` +
+      `<div class="auth-row"><span class="auth-k">User</span><span class="auth-v" title="${a.user}">${a.user||'--'}</span></div>` +
+      `<div class="auth-row"><span class="auth-k">Server</span><span class="auth-v" title="${srv}">${srv}</span></div>` +
+      `<div class="auth-row"><span class="auth-k">Mode</span><span class="auth-v">${a.method||'--'}</span></div>`;
+    const hc = document.getElementById('hdrCluster');
+    hc.textContent = srv.split(':')[0].split('.').slice(0,4).join('.');
+    hc.style.display = 'inline';
   } else {
-    card.className = 'auth-card auth-fail';
+    card.className = 'auth fail';
     card.innerHTML =
-      `<div style="color:var(--fail-text);font-weight:700;font-size:12px;margin-bottom:6px;">Not Connected</div>` +
-      `<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono);">` +
-      `Mount kubeconfig or pass OC_TOKEN env var.<br>See README for details.</div>`;
-  }
-  if (auth.server) {
-    const h = document.getElementById('hostSpan');
-    h.textContent = (auth.server || '').replace('https://','').split(':')[0].split('.').slice(0,2).join('.');
-    h.style.display = 'inline';
+      `<div class="auth-status"><span class="auth-dot"></span>Not Connected</div>` +
+      `<div style="font-size:10.5px;color:var(--tx3);font-family:var(--mono);margin-top:5px;line-height:1.6">` +
+      `Set OC_TOKEN + OC_SERVER<br>environment variables.</div>`;
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Polling
-// ═══════════════════════════════════════════════════════════════════
+// ── Polling ────────────────────────────────────────────────────────────────────
 function startPolling() {
   if (pollIv) clearInterval(pollIv);
   pollIv = setInterval(poll, 2000);
 }
 
 async function poll() {
-  let data;
-  try {
-    data = await fetch(`/api/results?from=${linesRendered}`).then(r => r.json());
-  } catch (_) { return; }
+  let d;
+  try { d = await fetch(`/api/results?from=${nLines}`).then(r => r.json()); }
+  catch(_) { return; }
 
-  // Render new lines
-  if (data.lines && data.lines.length) {
+  if (d.lines && d.lines.length) {
     showTerminal();
-    data.lines.forEach(l => renderLine(l.html, l.raw));
-    linesRendered += data.lines.length;
+    d.lines.forEach(l => renderLine(l.html, l.raw));
+    nLines += d.lines.length;
   }
 
-  // Update section statuses from server's parsed section list
-  if (data.sections && data.sections.length) {
-    data.sections.forEach(s => setCheckStatus(s.idx, s.status));
+  if (d.sections && d.sections.length) {
+    d.sections.forEach(s => setCheck(s.idx, s.status));
   }
 
-  // Stats
-  const lineCount = data.lineCount || linesRendered;
-  document.getElementById('sbLines').textContent = lineCount;
-  const pct = Math.min(95, Math.round((lineCount / 750) * 100));
-  document.getElementById('progFill').style.width = pct + '%';
+  // Progress
+  const lc = d.lineCount || nLines;
+  document.getElementById('sbLines').textContent = lc;
+  document.getElementById('progBar').style.width = Math.min(95, Math.round(lc/900*100)) + '%';
 
-  // Failure/warning counts from summary
-  if (data.totalFails !== null && data.totalFails !== undefined) {
-    const fe = document.getElementById('sbFail');
-    fe.textContent = data.totalFails;
-    fe.className = `ss-val ${data.totalFails > 0 ? 'fail' : 'ok'}`;
-  }
-  if (data.totalWarns !== null && data.totalWarns !== undefined) {
-    const we = document.getElementById('sbWarn');
-    we.textContent = data.totalWarns;
-    we.className = `ss-val ${data.totalWarns > 0 ? 'warn' : 'ok'}`;
-  }
+  // Live fail/warn counts
+  updateMetric('scFail','scFailVal','sbFail', d.totalFails, 'f');
+  updateMetric('scWarn','scWarnVal','sbWarn', d.totalWarns, 'w');
 
-  // Running state changes
-  if (data.running && !running) {
-    // Just started (e.g. auto-run)
+  // Running state
+  if (d.running && !running) {
     running = true;
-    startTime = data.startTime ? new Date(data.startTime) : new Date();
+    startTime = d.startTime ? new Date(d.startTime) : new Date();
     setRunning(true);
   }
-
-  if (!data.running && running) {
-    // Just finished
+  if (!d.running && running) {
     running = false;
     setRunning(false);
-    onDone(data.exitCode, data.result);
+    onDone(d.exitCode, d.result);
   }
-
-  // If completed on page load (wasn't running when we first polled)
-  if (!data.running && data.exitCode !== null && !running) {
-    onDone(data.exitCode, data.result);
-    document.getElementById('progFill').style.width = '100%';
+  // Page-load catch-up
+  if (!d.running && d.exitCode !== null && !running) {
+    onDone(d.exitCode, d.result);
+    document.getElementById('progBar').style.width = '100%';
     loadArtifacts();
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Terminal rendering
-// ═══════════════════════════════════════════════════════════════════
+function updateMetric(cardId, valId, sbId, value, type) {
+  if (value == null) return;
+  const n = parseInt(value, 10);
+  document.getElementById(valId).textContent = n;
+  document.getElementById(sbId).textContent  = n;
+  const card = document.getElementById(cardId);
+  const sbEl = document.getElementById(sbId);
+  if (type === 'f') {
+    card.className = `sc ${n > 0 ? 'sc-fail' : 'sc-pass'}`;
+    sbEl.className = `st-val ${n > 0 ? 'fail' : 'pass'}`;
+  } else {
+    card.className = `sc ${n > 0 ? 'sc-warn' : 'sc-pass'}`;
+    sbEl.className = `st-val ${n > 0 ? 'warn' : 'pass'}`;
+  }
+}
+
+// ── Terminal rendering ─────────────────────────────────────────────────────────
 function showTerminal() {
   const es = document.getElementById('emptyState');
   if (es) es.remove();
 }
 
 function renderLine(html, raw) {
-  const term = document.getElementById('terminal');
+  const term  = document.getElementById('terminal');
+  const clean = (raw||'').replace(/\x1b\[[0-9;]*m/g,'');
 
-  // Section anchor injection
-  const m = raw && raw.replace(/\x1b\[[0-9;]*m/g,'').match(/\[(\d{2})\/22\]/);
-  if (m) {
-    const a = document.createElement('span');
-    a.id = `anchor-${m[1]}`;
-    a.style.display = 'block';
-    term.appendChild(a);
-    // Highlight active in sidebar
-    document.querySelectorAll('.check-item.active').forEach(e => e.classList.remove('active'));
-    const ci = document.getElementById(`ci-${m[1]}`);
-    if (ci) ci.classList.add('active');
+  // v7 section anchor: "CHECK 01/25 ..."
+  const mv7 = clean.match(/CHECK\s+(\d{2})\/\d{2}/);
+  const mv6 = !mv7 && clean.match(/\[(\d{2})\/\d{2}\]/);
+  const m    = mv7 || mv6;
+  const mIdx = m && (mv7 ? mv7[1] : mv6[1]);
+  if (mIdx) {
+    const anc = document.createElement('span');
+    anc.id = `anc-${mIdx}`; anc.style.display = 'block';
+    term.appendChild(anc);
+    document.querySelectorAll('.ck.active').forEach(e => e.classList.remove('active'));
+    const ci = document.getElementById(`ck-${mIdx}`);
+    if (ci) { ci.classList.add('active'); ci.scrollIntoView({block:'nearest'}); }
   }
 
   const span = document.createElement('span');
-  span.className = 'line';
+  span.className = 'ln';
   span.innerHTML = html || '&nbsp;';
   term.appendChild(span);
-
   if (document.getElementById('autoScroll').checked) {
     term.scrollTop = term.scrollHeight;
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Run / Stop / Clear
-// ═══════════════════════════════════════════════════════════════════
+// ── Actions ────────────────────────────────────────────────────────────────────
 async function doRun() {
   doClear();
   showTerminal();
   setRunning(true);
-  running = true;
-  startTime = new Date();
-
-  const res = await fetch('/api/run', { method:'POST' }).then(r=>r.json()).catch(e=>({ error: e.message }));
-  if (res.error) {
-    renderLine(`<span class="r">ERROR: ${res.error}</span>`, '');
-    setRunning(false);
-    running = false;
+  running = true; startTime = new Date();
+  const r = await fetch('/api/run',{method:'POST'}).then(x=>x.json()).catch(e=>({error:e.message}));
+  if (r.error) {
+    renderLine(`<span class="r">[ERROR] ${r.error}</span>`,'');
+    setRunning(false); running = false;
   }
-  linesRendered = 0;
+  nLines = 0;
 }
 
 async function doStop() {
-  await fetch('/api/kill', { method:'POST' }).catch(()=>{});
+  await fetch('/api/kill',{method:'POST'}).catch(()=>{});
 }
 
 function doClear() {
-  linesRendered = 0;
-  running = false;
+  nLines = 0; running = false;
   stopTimer();
   document.getElementById('terminal').innerHTML =
     '<div class="empty" id="emptyState">' +
-    '<div class="empty-box">HC</div>' +
-    '<p>Click <strong>Run Health Check</strong> to begin</p>' +
-    '<p style="font-size:11px;margin-top:4px;">Results stream automatically after startup</p>' +
-    '</div>';
-
+    '<div class="empty-gfx">HC</div>' +
+    '<p>Ready for pre-flight check</p>' +
+    '<small>Click "Run Health Check" to begin</small></div>';
   buildNav();
-  resetResult();
+  resetUI();
   ['sbFail','sbWarn','sbLines','sbTime'].forEach(id => {
     const e = document.getElementById(id);
-    e.textContent = '--';
-    e.className   = 'ss-val';
+    e.textContent = '--'; e.className = 'st-val';
   });
-  document.getElementById('progFill').style.width = '0';
-  document.getElementById('artifactList').innerHTML = '<div class="no-data">No artifacts yet</div>';
-  enableDownloads(false);
+  ['scFail','scWarn'].forEach(id => document.getElementById(id).className = 'sc');
+  document.getElementById('scFailVal').textContent = '--';
+  document.getElementById('scWarnVal').textContent = '--';
+  document.getElementById('progBar').style.width = '0';
+  document.getElementById('artList').innerHTML = '<div class="no-data">No artifacts yet</div>';
+  enableDL(false);
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// State helpers
-// ═══════════════════════════════════════════════════════════════════
-function setRunning(isRunning) {
-  document.getElementById('btnRun').disabled  = isRunning;
-  document.getElementById('btnStop').disabled = !isRunning;
-
-  const pill = document.getElementById('runPill');
-  const txt  = document.getElementById('pillText');
-
-  if (isRunning) {
-    pill.className = 'run-pill running';
-    txt.textContent = 'Running';
-
-    // Add cursor to terminal
+// ── State helpers ──────────────────────────────────────────────────────────────
+function setRunning(on) {
+  document.getElementById('btnRun').disabled  = on;
+  document.getElementById('btnStop').disabled = !on;
+  const pill = document.getElementById('pill');
+  if (on) {
+    pill.className = 'pill running';
+    document.getElementById('pillTxt').textContent = 'Running';
     const term = document.getElementById('terminal');
-    if (!document.getElementById('cursorBlock')) {
-      const cur = document.createElement('span');
-      cur.id = 'cursorBlock';
-      cur.className = 'cursor-block';
-      term.appendChild(cur);
+    if (!document.getElementById('cur')) {
+      const c = document.createElement('span');
+      c.id='cur'; c.className='cursor'; term.appendChild(c);
     }
-
-    // Show timing
     document.getElementById('timing').style.display = 'block';
-    document.getElementById('tStart').textContent = startTime
-      ? startTime.toLocaleTimeString() : '--';
+    document.getElementById('tStart').textContent = startTime ? startTime.toLocaleTimeString() : '--';
     startTimer();
-
-    // Result card shows running
-    document.getElementById('resultCard').className = 'result-card running';
-    document.getElementById('resultLabel').className = 'result-label running';
-    document.getElementById('resultLabel').textContent = 'Running...';
-    document.getElementById('resultSub').textContent = 'Health check in progress';
+    document.getElementById('resCard').className = 'readiness running';
+    document.getElementById('resLbl').textContent = 'Running…';
+    document.getElementById('resSub').textContent = 'Health check in progress';
   } else {
-    // Remove cursor
-    const cur = document.getElementById('cursorBlock');
-    if (cur) cur.remove();
+    const c = document.getElementById('cur'); if(c) c.remove();
     stopTimer();
   }
 }
 
-function onDone(exitCode, result) {
+function onDone(code, result) {
   stopTimer();
-
-  const pill = document.getElementById('runPill');
-  const txt  = document.getElementById('pillText');
-  const card = document.getElementById('resultCard');
-  const lbl  = document.getElementById('resultLabel');
-  const sub  = document.getElementById('resultSub');
-
-  // Map exit code → result if not provided
-  if (!result) result = exitCode === 0 ? 'pass' : exitCode === 1 ? 'warn' : 'fail';
-
-  const MAP = {
-    pass: { pill:'pass', label:'PASS',    sub:'Cluster is ready for upgrade.' },
-    warn: { pill:'warn', label:'WARNING', sub:'Review warnings before upgrading.' },
-    fail: { pill:'fail', label:'FAILED',  sub:'Critical issues must be resolved before upgrading.' },
+  if (!result) result = code===0?'pass':code===1?'warn':'fail';
+  const M = {
+    pass:{pill:'pass',lbl:'PASS',    sub:'Cluster appears ready for upgrade.'},
+    warn:{pill:'warn',lbl:'WARNING', sub:'Review all warnings before upgrading.'},
+    fail:{pill:'fail',lbl:'FAILED',  sub:'Resolve critical issues before upgrading.'},
   };
-  const cfg = MAP[result] || MAP['fail'];
-
-  pill.className  = `run-pill ${cfg.pill}`;
-  txt.textContent = cfg.label;
-
-  card.className  = `result-card ${result}`;
-  lbl.className   = `result-label ${result}`;
-  lbl.textContent = cfg.label;
-  sub.textContent = cfg.sub;
-
-  document.getElementById('progFill').style.width = '100%';
-  enableDownloads(true);
+  const cfg = M[result]||M.fail;
+  document.getElementById('pill').className = `pill ${cfg.pill}`;
+  document.getElementById('pillTxt').textContent = cfg.lbl;
+  document.getElementById('resCard').className  = `readiness ${result}`;
+  document.getElementById('resLbl').textContent = cfg.lbl;
+  document.getElementById('resSub').textContent = cfg.sub;
+  document.getElementById('progBar').style.width = '100%';
+  enableDL(true);
   loadArtifacts();
 }
 
-function resetResult() {
-  document.getElementById('resultCard').className = 'result-card';
-  document.getElementById('resultLabel').className = 'result-label idle';
-  document.getElementById('resultLabel').textContent = 'Not run';
-  document.getElementById('resultSub').textContent = 'Run the check to see results';
-  document.getElementById('runPill').className = 'run-pill idle';
-  document.getElementById('pillText').textContent = 'Idle';
+function resetUI() {
+  document.getElementById('resCard').className  = 'readiness';
+  document.getElementById('resLbl').textContent = 'Not run';
+  document.getElementById('resSub').textContent = 'Run the check to see results';
+  document.getElementById('pill').className     = 'pill';
+  document.getElementById('pillTxt').textContent = 'Idle';
   document.getElementById('timing').style.display = 'none';
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Timer
-// ═══════════════════════════════════════════════════════════════════
+// ── Timer ──────────────────────────────────────────────────────────────────────
 function startTimer() {
   stopTimer();
   timerIv = setInterval(() => {
     if (!startTime) return;
-    const s = Math.round((Date.now() - startTime.getTime()) / 1000);
-    const m = Math.floor(s / 60);
-    document.getElementById('tDuration').textContent = m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
-    document.getElementById('sbTime').textContent    = m > 0 ? `${m}m${s%60}s` : `${s}s`;
-    document.getElementById('sbTime').className      = 'ss-val';
+    const s = Math.round((Date.now()-startTime.getTime())/1000);
+    const m = Math.floor(s/60);
+    const fmt = m > 0 ? `${m}m ${s%60}s` : `${s}s`;
+    document.getElementById('tDur').textContent   = fmt;
+    document.getElementById('sbTime').textContent = m > 0 ? `${m}m${s%60}s` : `${s}s`;
+    document.getElementById('sbTime').className   = 'st-val run';
   }, 1000);
 }
+function stopTimer() { if(timerIv){clearInterval(timerIv);timerIv=null;} }
 
-function stopTimer() {
-  if (timerIv) { clearInterval(timerIv); timerIv = null; }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// Downloads & Artifacts
-// ═══════════════════════════════════════════════════════════════════
-function enableDownloads(on) {
-  ['dlLog','dlSum'].forEach(id => {
-    const a = document.getElementById(id);
-    a.style.pointerEvents = on ? 'auto' : 'none';
-    a.style.opacity = on ? '1' : '0.4';
-  });
+// ── Downloads + Artifacts ──────────────────────────────────────────────────────
+function enableDL(on) {
+  ['dlLog','dlSum'].forEach(id =>
+    document.getElementById(id).setAttribute('aria-disabled', on?'false':'true'));
 }
 
 async function loadArtifacts() {
   let data;
-  try { data = await fetch('/api/artifacts').then(r=>r.json()); }
-  catch (_) { return; }
-
-  const list = document.getElementById('artifactList');
-  if (!data.files || !data.files.length) {
-    list.innerHTML = '<div class="no-data">No artifact files generated</div>';
-    return;
+  try { data = await fetch('/api/artifacts').then(r=>r.json()); } catch(_){return;}
+  const list = document.getElementById('artList');
+  if (!data.files||!data.files.length) {
+    list.innerHTML = '<div class="no-data">No artifact files generated</div>'; return;
   }
   list.innerHTML = '';
   data.files.forEach(f => {
     const row = document.createElement('div');
-    row.className = 'art-item';
-    const kb = (f.size / 1024).toFixed(1);
+    row.className = 'art';
     row.innerHTML =
       `<span class="art-name" title="${f.name}">${f.name}</span>` +
-      `<span class="art-size">${kb}K</span>` +
+      `<span class="art-sz">${(f.size/1024).toFixed(1)}K</span>` +
       `<a class="art-dl" href="/api/artifacts/${encodeURIComponent(f.name)}" download="${f.name}">DL</a>`;
     list.appendChild(row);
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Boot
-// ═══════════════════════════════════════════════════════════════════
 init();
 </script>
 </body>
