@@ -12,7 +12,7 @@
 #   --pdb=<name>          Filter by PDB name (substring match)
 #   --namespace=<ns>      Filter by exact namespace name
 #   --include-system      Include openshift-* system namespaces (excluded by default)
-#   --blocked-only        Show only PDBs where disruptionsAllowed = 0
+#   --blocked-only        Show only ACTIVE blockers (disruptionsAllowed=0 AND Running pods present)
 #   --help                Show this help message
 # =============================================================================
 
@@ -49,7 +49,9 @@ for arg in "$@"; do
       echo "  --pdb=<n>          Filter by PDB name (substring match)"
       echo "  --namespace=<ns>      Filter by exact namespace name"
       echo "  --include-system      Include openshift-* system namespaces (excluded by default)"
-      echo "  --blocked-only        Show only PDBs where disruptionsAllowed = 0"
+      echo "  --blocked-only        Show only ACTIVE blockers: disruptionsAllowed=0"
+      echo "                        AND at least one Running pod (inactive blockers"
+      echo "                        with no Running pods are excluded as non-actionable)"
       echo "  --help                Show this help message"
       echo ""
       echo -e "${BOLD}Combined Mode — Node Drain Blocker Check:${NC}"
@@ -81,7 +83,7 @@ for arg in "$@"; do
       echo "  # Quick drain go/no-go for a node  (recommended pre-drain check)"
       echo "  $0 --node=ip-10-0-1-45.ec2.internal --blocked-only"
       echo ""
-      echo "  # All blocked PDBs cluster-wide"
+      echo "  # All ACTIVE blockers cluster-wide (Running pods + disruptionsAllowed=0)"
       echo "  $0 --blocked-only"
       echo ""
       echo "  # Drill into a specific PDB by name (substring match)"
@@ -129,7 +131,7 @@ FILTERS_ACTIVE=false
 [[ -n "$FILTER_NODE" ]] && echo -e "  ${YELLOW}▶ Node filter      :${NC} $FILTER_NODE"  && FILTERS_ACTIVE=true
 [[ -n "$FILTER_PDB"  ]] && echo -e "  ${YELLOW}▶ PDB name filter  :${NC} $FILTER_PDB"   && FILTERS_ACTIVE=true
 [[ -n "$FILTER_NS"   ]] && echo -e "  ${YELLOW}▶ Namespace filter :${NC} $FILTER_NS"    && FILTERS_ACTIVE=true
-$BLOCKED_ONLY           && echo -e "  ${YELLOW}▶ Blocked-only mode: ON${NC}"             && FILTERS_ACTIVE=true
+$BLOCKED_ONLY           && echo -e "  ${YELLOW}▶ Blocked-only mode: ON (active blockers with Running pods only)${NC}" && FILTERS_ACTIVE=true
 $INCLUDE_SYSTEM         && echo -e "  ${YELLOW}▶ System namespaces: INCLUDED${NC}"
 $FILTERS_ACTIVE || echo -e "  ${CYAN}No filters — showing all non-system PDBs${NC}"
 
@@ -225,6 +227,10 @@ if [[ -n "$FILTER_PDB" ]]; then
 fi
 
 if $BLOCKED_ONLY; then
+  # Pre-filter to RED rows only — reduces pod lookups in STEP 5.
+  # The active-only gate (skip inactive blockers) is applied inside the
+  # display loop AFTER pod status is resolved, since pod phase is not
+  # known at this stage.
   awk -F'\t' '$1 == "RED"' "$TMP_COMPUTED" > "${TMP_COMPUTED}.tmp" \
     && mv "${TMP_COMPUTED}.tmp" "$TMP_COMPUTED"
 fi
@@ -286,14 +292,17 @@ fi
 #   ── CALC  ──  Formula explanation at the bottom
 # =============================================================================
 
-COUNT_BLOCKED=0; COUNT_LOW_HA=0; COUNT_SAFE=0; COUNT_FULL_OUTAGE=0; COUNT_PRINTED=0
+COUNT_BLOCKED=0          # RED: disruptionsAllowed=0 (any pod state)
+COUNT_BLOCKED_ACTIVE=0   # RED: disruptionsAllowed=0 AND has Running pods  → real blocker
+COUNT_BLOCKED_INACTIVE=0 # RED: disruptionsAllowed=0 AND no Running pods   → paper blocker
+COUNT_LOW_HA=0; COUNT_SAFE=0; COUNT_FULL_OUTAGE=0; COUNT_PRINTED=0
 SEP="${CYAN}$(printf '─%.0s' {1..110})${NC}"
 THINSEP="${CYAN}$(printf '┄%.0s' {1..110})${NC}"
 
 while IFS=$'\t' read -r color pct ns name type minval maxval expected healthy disruptions selector formula; do
   [[ -z "$color" ]] && continue
 
-  # ---- counters ----
+  # ---- counters (BLOCKED split happens after pod status check below) ----
   case "$color" in
     RED)    COUNT_BLOCKED=$((COUNT_BLOCKED+1)) ;;
     ORANGE) COUNT_LOW_HA=$((COUNT_LOW_HA+1)) ;;
@@ -327,6 +336,8 @@ while IFS=$'\t' read -r color pct ns name type minval maxval expected healthy di
 
   # ── ROW 3+: Fetch pods via selector ────────────────────────────────────────
   ALL_PODS=()
+  RUNNING_COUNT=0
+  NON_RUNNING_COUNT=0
   if [[ -n "$selector" ]]; then
     mapfile -t ALL_PODS < <(
       oc get pods -n "$ns" --selector="$selector" \
@@ -335,8 +346,35 @@ while IFS=$'\t' read -r color pct ns name type minval maxval expected healthy di
     )
   fi
 
+  # Count Running vs non-Running pods for this PDB
+  for pod_line in "${ALL_PODS[@]}"; do
+    [[ -z "$pod_line" ]] && continue
+    IFS=$'\t' read -r _pn _pnd _ps <<< "$pod_line"
+    if [[ "$_ps" == "Running" ]]; then
+      RUNNING_COUNT=$((RUNNING_COUNT+1))
+    else
+      NON_RUNNING_COUNT=$((NON_RUNNING_COUNT+1))
+    fi
+  done
+
+  # Classify RED PDBs as ACTIVE (real blocker) or INACTIVE (paper blocker)
+  POD_HEALTH_VERDICT=""
+  if [[ "$color" == "RED" ]]; then
+    if [[ $RUNNING_COUNT -gt 0 ]]; then
+      COUNT_BLOCKED_ACTIVE=$((COUNT_BLOCKED_ACTIVE+1))
+      POD_HEALTH_VERDICT="ACTIVE_BLOCKER"
+    else
+      COUNT_BLOCKED_INACTIVE=$((COUNT_BLOCKED_INACTIVE+1))
+      POD_HEALTH_VERDICT="INACTIVE_BLOCKER"
+      # --blocked-only means show active blockers only — skip inactive ones
+      if $BLOCKED_ONLY; then
+        continue
+      fi
+    fi
+  fi
+
   POD_COUNT="${#ALL_PODS[@]}"
-  echo -e "  ${BOLD}Pod count:${NC} ${C}${POD_COUNT} pod(s) matched by this PDB${NC}"
+  echo -e "  ${BOLD}Pod count:${NC} ${C}${POD_COUNT} pod(s) matched by this PDB  (Running: ${GREEN}${RUNNING_COUNT}${NC}  |  Non-Running: ${YELLOW}${NON_RUNNING_COUNT}${NC})${NC}"
   echo ""
 
   if [[ $POD_COUNT -eq 0 ]]; then
@@ -375,12 +413,19 @@ while IFS=$'\t' read -r color pct ns name type minval maxval expected healthy di
     done
   fi
 
-  # ── FORMULA: calculation explanation at the bottom of this block ───────────
+  # ── FORMULA + POD HEALTH VERDICT at the bottom of each PDB block ──────────
   echo ""
   echo -e "  ${BOLD}Calculation :${NC}"
   echo -e "    ${CYAN}${formula}${NC}"
   if [[ "$disruptions" -eq 0 ]]; then
-    echo -e "    ${RED}${BOLD}→ disruptionsAllowed = 0 — this PDB will BLOCK maintenance / node drain${NC}"
+    if [[ "$POD_HEALTH_VERDICT" == "ACTIVE_BLOCKER" ]]; then
+      echo -e "    ${RED}${BOLD}→ disruptionsAllowed = 0  |  ${RUNNING_COUNT} Running pod(s) — REAL BLOCKER: will block maintenance / node drain${NC}"
+    elif [[ "$POD_HEALTH_VERDICT" == "INACTIVE_BLOCKER" ]]; then
+      echo -e "    ${YELLOW}${BOLD}→ disruptionsAllowed = 0  |  0 Running pods — PAPER BLOCKER: PDB is configured as blocked but no Running pods back it${NC}"
+      echo -e "    ${YELLOW}  Eviction will succeed despite PDB config — safe to proceed with maintenance${NC}"
+    else
+      echo -e "    ${RED}${BOLD}→ disruptionsAllowed = 0 — this PDB will BLOCK maintenance / node drain${NC}"
+    fi
   else
     echo -e "    ${C}→ disruptionsAllowed = ${disruptions} (${pct}% of expected pods)${NC}"
   fi
@@ -402,23 +447,32 @@ echo -e "${BOLD}${CYAN}  ╚═════════════════�
   && echo -e "  ${YELLOW}(Filtered view — counts reflect active filters)${NC}"
 echo ""
 
-printf "  ${RED}${BOLD}  %-38s${NC}  %s\n"    "Blocked (disruptionsAllowed=0):"     "$COUNT_BLOCKED"
-printf "  ${ORANGE}${BOLD}  %-38s${NC}  %s\n" "Low HA / Caution (<30%% disrupts):"  "$COUNT_LOW_HA"
-printf "  ${GREEN}${BOLD}  %-38s${NC}  %s\n"  "Safe (>=30%% disruptions allowed):"  "$COUNT_SAFE"
-printf "  ${BLUE}${BOLD}  %-38s${NC}  %s\n"   "Full outage (100%% disruptions):"    "$COUNT_FULL_OUTAGE"
+printf "  ${RED}${BOLD}  %-38s${NC}  %s\n"    "Blocked (disruptionsAllowed=0):"          "$COUNT_BLOCKED"
+printf "  ${RED}  %-38s${NC}  %s\n"           "  ↳ Active blockers (Running pods):"       "$COUNT_BLOCKED_ACTIVE"
+printf "  ${YELLOW}  %-38s${NC}  %s\n"        "  ↳ Inactive blockers (no Running pods):"  "$COUNT_BLOCKED_INACTIVE"
+printf "  ${ORANGE}${BOLD}  %-38s${NC}  %s\n" "Low HA / Caution (<30%% disrupts):"        "$COUNT_LOW_HA"
+printf "  ${GREEN}${BOLD}  %-38s${NC}  %s\n"  "Safe (>=30%% disruptions allowed):"        "$COUNT_SAFE"
+printf "  ${BLUE}${BOLD}  %-38s${NC}  %s\n"   "Full outage (100%% disruptions):"          "$COUNT_FULL_OUTAGE"
 echo ""
 printf "  ${BOLD}  %-38s  %s${NC}\n" "Total PDBs displayed:" "$COUNT_PRINTED"
 
 if [[ -n "$FILTER_NODE" ]] && $BLOCKED_ONLY; then
-  # Combined mode — give an explicit drain go/no-go verdict
+  # Combined mode — drain verdict based on ACTIVE blockers only
   echo ""
   echo -e "  ${BOLD}${CYAN}  ── Drain Verdict for node: ${FILTER_NODE} ──${NC}"
-  if [[ "$COUNT_BLOCKED" -eq 0 ]]; then
+  if [[ "$COUNT_BLOCKED_ACTIVE" -eq 0 && "$COUNT_BLOCKED" -eq 0 ]]; then
     echo -e "  ${GREEN}${BOLD}  ✔  CLEAR TO DRAIN${NC}"
     echo -e "  ${GREEN}  No blocking PDBs found in namespaces with pods on this node.${NC}"
+  elif [[ "$COUNT_BLOCKED_ACTIVE" -eq 0 && "$COUNT_BLOCKED_INACTIVE" -gt 0 ]]; then
+    echo -e "  ${GREEN}${BOLD}  ✔  CLEAR TO DRAIN${NC}"
+    echo -e "  ${GREEN}  $COUNT_BLOCKED_INACTIVE PDB(s) show disruptionsAllowed=0 but have NO Running pods.${NC}"
+    echo -e "  ${GREEN}  These are paper blockers — eviction will succeed. Safe to drain.${NC}"
   else
-    echo -e "  ${RED}${BOLD}  ✘  DRAIN BLOCKED — $COUNT_BLOCKED PDB(s) will prevent node drain${NC}"
-    echo -e "  ${RED}  Resolve the BLOCKED PDB(s) listed above before draining.${NC}"
+    echo -e "  ${RED}${BOLD}  ✘  DRAIN BLOCKED — $COUNT_BLOCKED_ACTIVE active PDB blocker(s) with Running pods${NC}"
+    if [[ "$COUNT_BLOCKED_INACTIVE" -gt 0 ]]; then
+      echo -e "  ${YELLOW}  ($COUNT_BLOCKED_INACTIVE additional PDB(s) are inactive blockers — no Running pods, safe to ignore)${NC}"
+    fi
+    echo -e "  ${RED}  Resolve the ACTIVE BLOCKED PDB(s) listed above before draining.${NC}"
     echo -e "  ${RED}  Tip: scale up the workload or temporarily remove the PDB.${NC}"
   fi
 elif [[ -n "$FILTER_NODE" ]]; then
@@ -430,8 +484,14 @@ fi
 
 if [[ "$COUNT_BLOCKED" -gt 0 ]] && ! ( [[ -n "$FILTER_NODE" ]] && $BLOCKED_ONLY ); then
   echo ""
-  echo -e "  ${RED}${BOLD}  ⚠  ACTION REQUIRED:${NC} ${RED}$COUNT_BLOCKED PDB(s) have disruptionsAllowed=0.${NC}"
-  echo -e "  ${RED}  These will block node drain and cluster maintenance operations.${NC}"
+  if [[ "$COUNT_BLOCKED_ACTIVE" -gt 0 ]]; then
+    echo -e "  ${RED}${BOLD}  ⚠  ACTION REQUIRED:${NC} ${RED}$COUNT_BLOCKED_ACTIVE PDB(s) are ACTIVE BLOCKERS (disruptionsAllowed=0 with Running pods).${NC}"
+    echo -e "  ${RED}  These will block node drain and cluster maintenance operations.${NC}"
+  fi
+  if [[ "$COUNT_BLOCKED_INACTIVE" -gt 0 ]]; then
+    echo -e "  ${YELLOW}${BOLD}  ℹ  NOTE:${NC} ${YELLOW}$COUNT_BLOCKED_INACTIVE PDB(s) are INACTIVE BLOCKERS (disruptionsAllowed=0 but no Running pods).${NC}"
+    echo -e "  ${YELLOW}  These will NOT block maintenance — eviction will succeed as no Running pods are present.${NC}"
+  fi
 fi
 
 if [[ "$COUNT_FULL_OUTAGE" -gt 0 ]]; then
