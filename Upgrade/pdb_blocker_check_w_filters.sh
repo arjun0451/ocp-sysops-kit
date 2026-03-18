@@ -44,12 +44,57 @@ for arg in "$@"; do
     --help)
       echo -e "${BOLD}Usage:${NC} $0 [OPTIONS]"
       echo ""
-      echo "  --node=<nodename>     Show all PDBs in namespaces with ANY pod on this node"
-      echo "  --pdb=<name>          Filter by PDB name (substring match)"
-      echo "  --namespace=<ns>      Filter by exact namespace"
-      echo "  --include-system      Include openshift-* namespaces"
+      echo -e "${BOLD}Options:${NC}"
+      echo "  --node=<nodename>     Show all PDBs in namespaces that have ANY pod on this node"
+      echo "  --pdb=<n>          Filter by PDB name (substring match)"
+      echo "  --namespace=<ns>      Filter by exact namespace name"
+      echo "  --include-system      Include openshift-* system namespaces (excluded by default)"
       echo "  --blocked-only        Show only PDBs where disruptionsAllowed = 0"
-      echo "  --help                Show this help"
+      echo "  --help                Show this help message"
+      echo ""
+      echo -e "${BOLD}Combined Mode — Node Drain Blocker Check:${NC}"
+      echo "  --node=<nodename> --blocked-only"
+      echo ""
+      echo "    The fastest way to check if a node is safe to drain."
+      echo "    Combines both filters to show ONLY the PDBs that are:"
+      echo "      * disruptionsAllowed = 0  (will actively block the drain)"
+      echo "      * in a namespace with at least one pod on the target node"
+      echo ""
+      echo "    Filter chain (runs in order):"
+      echo "      1. Compute disruption status for all PDBs"
+      echo "         (accurate minAvailable / maxUnavailable formula)"
+      echo "      2. Keep only BLOCKED PDBs  (disruptionsAllowed = 0)"
+      echo "      3. Single oc call to resolve all namespaces on the target node"
+      echo "      4. Keep only BLOCKED PDBs whose namespace is in that set"
+      echo ""
+      echo "    Drain verdict printed at the end of the run:"
+      echo "      CLEAR TO DRAIN  -- no blocking PDBs found for this node"
+      echo "      DRAIN BLOCKED   -- N PDB(s) must be resolved before draining"
+      echo ""
+      echo -e "${BOLD}Examples:${NC}"
+      echo "  # Full report -- all non-system PDBs with pod/node detail"
+      echo "  $0"
+      echo ""
+      echo "  # All PDBs in namespaces with pods on a specific node"
+      echo "  $0 --node=ip-10-0-1-45.ec2.internal"
+      echo ""
+      echo "  # Quick drain go/no-go for a node  (recommended pre-drain check)"
+      echo "  $0 --node=ip-10-0-1-45.ec2.internal --blocked-only"
+      echo ""
+      echo "  # All blocked PDBs cluster-wide"
+      echo "  $0 --blocked-only"
+      echo ""
+      echo "  # Drill into a specific PDB by name (substring match)"
+      echo "  $0 --pdb=kafka"
+      echo ""
+      echo "  # Scope to a single namespace"
+      echo "  $0 --namespace=my-app"
+      echo ""
+      echo "  # Namespace + blocked-only"
+      echo "  $0 --namespace=my-app --blocked-only"
+      echo ""
+      echo "  # Include openshift-* system namespaces"
+      echo "  $0 --include-system"
       exit 0
       ;;
     *)
@@ -87,6 +132,16 @@ FILTERS_ACTIVE=false
 $BLOCKED_ONLY           && echo -e "  ${YELLOW}▶ Blocked-only mode: ON${NC}"             && FILTERS_ACTIVE=true
 $INCLUDE_SYSTEM         && echo -e "  ${YELLOW}▶ System namespaces: INCLUDED${NC}"
 $FILTERS_ACTIVE || echo -e "  ${CYAN}No filters — showing all non-system PDBs${NC}"
+
+# ---- Combined mode: --node + --blocked-only = drain-blocker check -----------
+if [[ -n "$FILTER_NODE" ]] && $BLOCKED_ONLY; then
+  echo ""
+  echo -e "  ${RED}${BOLD}  ╔══════════════════════════════════════════════════════╗${NC}"
+  echo -e "  ${RED}${BOLD}  ║   NODE DRAIN BLOCKER CHECK MODE                     ║${NC}"
+  echo -e "  ${RED}${BOLD}  ║   Showing ONLY PDBs that will BLOCK drain of:       ║${NC}"
+  printf  "  ${RED}${BOLD}  ║   %-51s║${NC}\n" "Node: ${FILTER_NODE}"
+  echo -e "  ${RED}${BOLD}  ╚══════════════════════════════════════════════════════╝${NC}"
+fi
 echo ""
 
 # ---- Temp files ----
@@ -214,6 +269,10 @@ if [[ -n "$FILTER_NODE" ]]; then
   awk -F'\t' 'NR==FNR{ns[$1]=1; next} $3 in ns' \
     "$TMP_NS_FILTER" "$TMP_COMPUTED" > "${TMP_COMPUTED}.tmp" \
     && mv "${TMP_COMPUTED}.tmp" "$TMP_COMPUTED"
+
+  # Combined mode note: if --blocked-only is also set, downstream awk already
+  # filtered to RED rows; node filter then narrows to affected namespaces only.
+  # Result = exact set of PDBs blocking drain of FILTER_NODE.
 fi
 
 # =============================================================================
@@ -350,14 +409,26 @@ printf "  ${BLUE}${BOLD}  %-38s${NC}  %s\n"   "Full outage (100%% disruptions):"
 echo ""
 printf "  ${BOLD}  %-38s  %s${NC}\n" "Total PDBs displayed:" "$COUNT_PRINTED"
 
-if [[ -n "$FILTER_NODE" ]]; then
+if [[ -n "$FILTER_NODE" ]] && $BLOCKED_ONLY; then
+  # Combined mode — give an explicit drain go/no-go verdict
+  echo ""
+  echo -e "  ${BOLD}${CYAN}  ── Drain Verdict for node: ${FILTER_NODE} ──${NC}"
+  if [[ "$COUNT_BLOCKED" -eq 0 ]]; then
+    echo -e "  ${GREEN}${BOLD}  ✔  CLEAR TO DRAIN${NC}"
+    echo -e "  ${GREEN}  No blocking PDBs found in namespaces with pods on this node.${NC}"
+  else
+    echo -e "  ${RED}${BOLD}  ✘  DRAIN BLOCKED — $COUNT_BLOCKED PDB(s) will prevent node drain${NC}"
+    echo -e "  ${RED}  Resolve the BLOCKED PDB(s) listed above before draining.${NC}"
+    echo -e "  ${RED}  Tip: scale up the workload or temporarily remove the PDB.${NC}"
+  fi
+elif [[ -n "$FILTER_NODE" ]]; then
   echo ""
   echo -e "  ${YELLOW}${BOLD}  Node scope :${NC} ${BOLD}${FILTER_NODE}${NC}"
   echo -e "  ${YELLOW}  All PDBs shown are in namespaces that have pods on this node.${NC}"
-  echo -e "  ${YELLOW}  Any BLOCKED PDB above will prevent draining this node.${NC}"
+  echo -e "  ${YELLOW}  Re-run with --blocked-only for a focused drain-blocker check.${NC}"
 fi
 
-if [[ "$COUNT_BLOCKED" -gt 0 ]]; then
+if [[ "$COUNT_BLOCKED" -gt 0 ]] && ! ( [[ -n "$FILTER_NODE" ]] && $BLOCKED_ONLY ); then
   echo ""
   echo -e "  ${RED}${BOLD}  ⚠  ACTION REQUIRED:${NC} ${RED}$COUNT_BLOCKED PDB(s) have disruptionsAllowed=0.${NC}"
   echo -e "  ${RED}  These will block node drain and cluster maintenance operations.${NC}"
