@@ -1,0 +1,15 @@
+apiVersion: v2
+name: ocp-ns-dashboard
+description: OpenShift Workload Monitoring Dashboard — namespace & pod visibility
+type: application
+version: 1.0.0
+appVersion: "v5"
+keywords:
+  - openshift
+  - monitoring
+  - dashboard
+  - namespace
+  - workloads
+maintainers:
+  - name: Platform SRE
+home: https://github.com/arjun0451/ocp-sysops-kit

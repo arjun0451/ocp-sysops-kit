@@ -1,0 +1,33 @@
+# =============================================================================
+# Production override values
+# Usage: helm install ocp-ns-dashboard ./helm/ocp-ns-dashboard \
+#          -f values-production.yaml
+# =============================================================================
+
+namespace: ocp-ns-dashboard
+
+image:
+  repository: quay.io/arjun0451/backup/ocp-health-dashboard
+  tag: "v5"
+  pullPolicy: Always
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "300m"
+    memory: "256Mi"
+
+route:
+  enabled: true
+  host: ""          # auto-assigned by OCP router
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  timeout: "30s"
+
+podAnnotations:
+  app.kubernetes.io/environment: production

@@ -1,0 +1,36 @@
+{{- if .Values.rbac.create }}
+---
+# ClusterRole — get/list/watch only on dashboard-required resources
+# No write, delete, exec, escalate, or secret access.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ocp-ns-dashboard.fullname" . }}-viewer
+  labels:
+    {{- include "ocp-ns-dashboard.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, pods, nodes]
+    verbs: [get, list, watch]
+  - apiGroups: ["apps"]
+    resources: [deployments, statefulsets]
+    verbs: [get, list, watch]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ocp-ns-dashboard.fullname" . }}-viewer-binding
+  labels:
+    {{- include "ocp-ns-dashboard.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "ocp-ns-dashboard.serviceAccountName" . }}
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "ocp-ns-dashboard.fullname" . }}-viewer
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

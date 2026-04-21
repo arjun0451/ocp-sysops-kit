@@ -1,0 +1,14 @@
+OpenShift Workload Monitoring Dashboard installed.
+
+Get Route URL:
+  oc get route {{ include "ocp-ns-dashboard.fullname" . }} -n {{ .Values.namespace }} -o jsonpath='{.spec.host}'
+
+Check rollout:
+  oc rollout status deploy/{{ include "ocp-ns-dashboard.fullname" . }} -n {{ .Values.namespace }}
+
+Verify SCC (should return restricted-v2):
+  oc get pod -n {{ .Values.namespace }} -o jsonpath='{.items[0].metadata.annotations.openshift\.io/scc}'
+
+Uninstall:
+  helm uninstall {{ .Release.Name }} -n {{ .Values.namespace }}
+  oc delete namespace {{ .Values.namespace }}

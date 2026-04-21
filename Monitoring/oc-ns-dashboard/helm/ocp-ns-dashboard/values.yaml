@@ -1,0 +1,103 @@
+# =============================================================================
+# ocp-ns-dashboard — Helm Values
+# =============================================================================
+
+# -- Namespace to deploy into
+namespace: ocp-ns-dashboard
+
+# -- Image config
+image:
+  repository: quay.io/arjun0451/backup/ocp-health-dashboard
+  tag: "v5"
+  pullPolicy: Always
+  # pullSecrets: []            # list of imagePullSecret names if registry is private
+
+# -- Number of replicas (dashboard is stateless, 1 is sufficient)
+replicaCount: 1
+
+# -- Application port (must match containerPort and Containerfile EXPOSE)
+port: 3000
+
+# -- Rolling update strategy
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+# -- Resource requests/limits
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "256Mi"
+
+# -- Probes
+livenessProbe:
+  initialDelaySeconds: 15
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# -- Pod security — do NOT set runAsUser/fsGroup
+# OCP restricted-v2 injects namespace UID automatically.
+# Hardcoding UID causes "must be in ranges" admission errors.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+
+# -- Service
+service:
+  type: ClusterIP
+  port: 3000
+
+# -- OpenShift Route
+route:
+  enabled: true
+  host: ""             # leave empty → OCP auto-assigns <name>-<ns>.<cluster-domain>
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  timeout: "30s"
+
+# -- RBAC
+rbac:
+  # Creates ClusterRole + ClusterRoleBinding for get/list/watch on
+  # namespaces, pods, nodes, deployments, statefulsets
+  create: true
+
+serviceAccount:
+  create: true
+  name: ocp-ns-dashboard-sa
+
+# -- Extra env vars injected into the container
+extraEnv: []
+# - name: LOG_LEVEL
+#   value: debug
+
+# -- Node selector, tolerations, affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# -- Pod annotations
+podAnnotations: {}
+
+# -- Additional labels applied to all resources
+commonLabels: {}

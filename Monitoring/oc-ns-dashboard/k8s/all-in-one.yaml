@@ -1,0 +1,198 @@
+---
+# =============================================================================
+# OpenShift Workload Monitoring Dashboard
+# FLAT MANIFEST — install directly with:  oc apply -f all-in-one.yaml
+#
+# Two install forms available:
+#   Form 1 (this file) : oc apply -f all-in-one.yaml
+#   Form 2 (Helm)      : helm install ocp-ns-dashboard ./helm/ocp-ns-dashboard
+#
+# Image: quay.io/arjun0451/backup/ocp-health-dashboard:v5
+# SCC  : restricted-v2 (default — no anyuid needed, no runAsUser set)
+# =============================================================================
+
+# ── Namespace ────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ocp-ns-dashboard
+  labels:
+    app.kubernetes.io/name: ocp-ns-dashboard
+    app.kubernetes.io/managed-by: platform-sre
+
+---
+# ── ServiceAccount ───────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ocp-ns-dashboard-sa
+  namespace: ocp-ns-dashboard
+  labels:
+    app.kubernetes.io/name: ocp-ns-dashboard
+    app.kubernetes.io/component: serviceaccount
+
+---
+# ── ClusterRole — read-only, minimal privilege ───────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ocp-ns-dashboard-viewer
+  labels:
+    app.kubernetes.io/name: ocp-ns-dashboard
+    app.kubernetes.io/component: rbac
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, pods, nodes]
+    verbs: [get, list, watch]
+  - apiGroups: ["apps"]
+    resources: [deployments, statefulsets]
+    verbs: [get, list, watch]
+
+---
+# ── ClusterRoleBinding ───────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ocp-ns-dashboard-viewer-binding
+  labels:
+    app.kubernetes.io/name: ocp-ns-dashboard
+    app.kubernetes.io/component: rbac
+subjects:
+  - kind: ServiceAccount
+    name: ocp-ns-dashboard-sa
+    namespace: ocp-ns-dashboard
+roleRef:
+  kind: ClusterRole
+  name: ocp-ns-dashboard-viewer
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ── Deployment ───────────────────────────────────────────────────────────────
+# SCC: restricted-v2 (default)
+# DO NOT set runAsUser / fsGroup — OCP injects namespace UID automatically.
+# Hardcoding causes "must be in ranges" admission rejection across clusters.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocp-ns-dashboard
+  namespace: ocp-ns-dashboard
+  labels:
+    app: ocp-ns-dashboard
+    app.kubernetes.io/name: ocp-ns-dashboard
+    app.kubernetes.io/component: dashboard
+    version: "v5"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ocp-ns-dashboard
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: ocp-ns-dashboard
+        app.kubernetes.io/name: ocp-ns-dashboard
+        version: "v5"
+    spec:
+      serviceAccountName: ocp-ns-dashboard-sa
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ocp-ns-dashboard
+          image: quay.io/arjun0451/backup/ocp-health-dashboard:v5
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "3000"
+            - name: NODE_ENV
+              value: "production"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      restartPolicy: Always
+
+---
+# ── Service ──────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: ocp-ns-dashboard
+  namespace: ocp-ns-dashboard
+  labels:
+    app: ocp-ns-dashboard
+    app.kubernetes.io/name: ocp-ns-dashboard
+spec:
+  selector:
+    app: ocp-ns-dashboard
+  ports:
+    - name: http
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP
+
+---
+# ── Route — TLS edge, HTTP redirect ──────────────────────────────────────────
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ocp-ns-dashboard
+  namespace: ocp-ns-dashboard
+  labels:
+    app: ocp-ns-dashboard
+    app.kubernetes.io/name: ocp-ns-dashboard
+  annotations:
+    haproxy.router.openshift.io/timeout: "30s"
+spec:
+  to:
+    kind: Service
+    name: ocp-ns-dashboard
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

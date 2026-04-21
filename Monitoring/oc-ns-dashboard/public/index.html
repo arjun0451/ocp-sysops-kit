@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OpenShift Workload Monitoring Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23C8001A'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='white' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='white'/%3E%3Cline x1='16' y1='5' x2='16' y2='9' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='16' y1='23' x2='16' y2='27' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='5' y1='16' x2='9' y2='16' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='23' y1='16' x2='27' y2='16' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700;900&family=Red+Hat+Mono:wght@400;500&family=Red+Hat+Text:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+/* ═══════════════════════════════════════════════════════
+   VARIABLES
+═══════════════════════════════════════════════════════ */
+:root {
+  --rh-red:       #CC2200;
+  --rh-red-dark:  #A01800;
+
+  --c-green:      #3E8635; --c-green-bg:  #EFF6EE;
+  --c-yellow:     #F0AB00; --c-yellow-bg: #FFF9EC;
+  --c-red:        #C9190B; --c-red-bg:    #FAEAE8;
+  --c-orange:     #EC7A08; --c-orange-bg: #FFF2E5;
+  --c-blue:       #0066CC; --c-blue-bg:   #EEF6FF;
+  --c-purple:     #7B4FA6; --c-purple-bg: #F5F0FF;
+  --c-gray:       #6A6E73; --c-gray-bg:   #F2F2F2;
+
+  --bg-page:      #EFEFEF;
+  --bg-card:      #FFFFFF;
+  --bg-input:     #FFFFFF;
+  --bg-topbar:    #C8001A;
+  --bg-fbar:      #FFFFFF;
+  --bg-footer:    #151515;
+  --text-1:       #151515;
+  --text-2:       #6A6E73;
+  --text-3:       #8A8D90;
+  --border:       #CCCCCC;
+  --border-card:  #E5E5E5;
+  --shadow-sm:    0 1px 3px rgba(0,0,0,.07), 0 0 0 1px rgba(0,0,0,.04);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.12);
+  --radius:       6px;
+}
+[data-theme="dark"] {
+  --bg-page:      #0C0C0C;
+  --bg-card:      #181818;
+  --bg-input:     #212121;
+  --bg-fbar:      #111111;
+  --text-1:       #F0F0F0;
+  --text-2:       #8A8A8A;
+  --text-3:       #5A5A5A;
+  --border:       #2A2A2A;
+  --border-card:  #222222;
+  --shadow-sm:    0 1px 4px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04);
+  --shadow-md:    0 4px 18px rgba(0,0,0,.3);
+  --c-green-bg:   #0C2B0C; --c-yellow-bg: #261E00;
+  --c-red-bg:     #2A0906; --c-orange-bg: #271500;
+  --c-blue-bg:    #041830; --c-purple-bg: #1A1030;
+  --c-gray-bg:    #1E1E1E;
+}
+
+/* ═══════════════════════════════════════════════════════
+   BASE
+═══════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Red Hat Text', sans-serif; background: var(--bg-page); color: var(--text-1); min-height: 100vh; transition: background .2s, color .2s; }
+button { cursor: pointer; font-family: inherit; }
+
+/* ═══════════════════════════════════════════════════════
+   TOPBAR
+═══════════════════════════════════════════════════════ */
+.topbar {
+  background: var(--bg-topbar);
+  height: 52px; display: flex; align-items: center;
+  padding: 0 20px; gap: 14px;
+  position: sticky; top: 0; z-index: 300;
+  box-shadow: 0 2px 10px rgba(0,0,0,.3);
+}
+.tb-brand { display: flex; flex-direction: column; }
+.tb-title  { font-family: 'Red Hat Display', sans-serif; font-weight: 700; font-size: 15px; color: #fff; }
+.tb-sub    { font-size: 10px; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: .06em; margin-top: 1px; }
+.tb-space  { flex: 1; }
+.tb-acts   { display: flex; align-items: center; gap: 9px; }
+.tb-cd     { font-family: 'Red Hat Mono', monospace; font-size: 12px; color: rgba(255,255,255,.75); display: flex; align-items: center; gap: 5px; }
+.tb-btn    { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.2); color: #fff; border-radius: 4px; padding: 5px 12px; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 5px; transition: background .15s; }
+.tb-btn:hover { background: rgba(255,255,255,.28); }
+.tgl       { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.2); border-radius: 20px; padding: 3px 12px 3px 5px; display: flex; align-items: center; gap: 7px; color: #fff; font-size: 11px; font-weight: 500; transition: background .15s; }
+.tgl:hover { background: rgba(255,255,255,.28); }
+.tgl-k     { width: 24px; height: 13px; background: rgba(255,255,255,.3); border-radius: 7px; position: relative; transition: background .2s; }
+.tgl-k::after { content: ''; position: absolute; top: 1.5px; left: 1.5px; width: 10px; height: 10px; background: #fff; border-radius: 50%; transition: transform .2s; }
+[data-theme="dark"] .tgl-k                { background: rgba(200,0,26,.5); }
+[data-theme="dark"] .tgl-k::after         { transform: translateX(11px); }
+
+/* ═══════════════════════════════════════════════════════
+   HEALTH BANNER
+═══════════════════════════════════════════════════════ */
+.hbanner {
+  display: none; align-items: center; gap: 10px;
+  padding: 9px 20px; font-size: 12px; font-weight: 600;
+  border-bottom: 1px solid transparent;
+  transition: background .3s;
+}
+.hbanner.show   { display: flex; }
+.hbanner.b-ok   { background: var(--c-green-bg);  color: var(--c-green);  border-color: rgba(62,134,53,.2); }
+.hbanner.b-warn { background: var(--c-yellow-bg); color: #7a5800;         border-color: rgba(240,171,0,.25); }
+.hbanner.b-crit { background: var(--c-red-bg);    color: var(--c-red);    border-color: rgba(201,25,11,.2); }
+.hb-pulse { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.b-ok   .hb-pulse { background: var(--c-green); }
+.b-warn .hb-pulse { background: var(--c-yellow); }
+.b-crit .hb-pulse { background: var(--c-red); animation: pulse 1.2s infinite; }
+.hb-right { margin-left: auto; font-size: 11px; font-weight: 400; opacity: .75; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ═══════════════════════════════════════════════════════
+   FILTER BAR — 2 rows
+═══════════════════════════════════════════════════════ */
+.fbar {
+  background: var(--bg-fbar);
+  border-bottom: 1px solid var(--border-card);
+  position: sticky; top: 52px; z-index: 200;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.fbar-r1, .fbar-r2 {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px; padding: 8px 20px;
+}
+.fbar-r1 { border-bottom: 1px solid var(--border-card); }
+.fbar-r2 { padding-top: 7px; padding-bottom: 7px; }
+
+/* advanced filter toggle */
+.adv-toggle {
+  background: none; border: 1px dashed var(--border);
+  border-radius: 4px; color: var(--text-3);
+  font-size: 11px; padding: 4px 10px;
+  display: flex; align-items: center; gap: 4px;
+  transition: all .15s;
+}
+.adv-toggle:hover  { border-color: var(--rh-red); color: var(--rh-red); }
+.adv-toggle.open   { border-style: solid; border-color: var(--rh-red); color: var(--rh-red); background: rgba(200,0,26,.05); }
+.fbar-r2           { display: none; }
+.fbar-r2.open      { display: flex; }
+
+/* inputs */
+.si-wrap { position: relative; }
+.si-wrap svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+.si { width: 100%; padding: 6px 8px 6px 30px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); color: var(--text-1); font-size: 12px; font-family: 'Red Hat Text', sans-serif; outline: none; transition: border-color .15s, box-shadow .15s; }
+.si::placeholder { color: var(--text-3); }
+.si:focus { border-color: var(--rh-red); box-shadow: 0 0 0 2px rgba(200,0,26,.12); }
+.si-ns  { width: 220px; }
+.si-pod { width: 175px; }
+
+.vsep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; align-self: center; }
+
+/* chips */
+.fg    { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.flbl  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); flex-shrink: 0; white-space: nowrap; }
+.chip  { border: 1px solid var(--border); background: var(--bg-page); color: var(--text-2); border-radius: 12px; padding: 3px 10px; font-size: 11px; font-weight: 500; display: flex; align-items: center; gap: 3px; transition: all .15s; white-space: nowrap; }
+.chip:hover { border-color: var(--rh-red); color: var(--rh-red); }
+.chip.active { background: var(--rh-red); border-color: var(--rh-red); color: #fff; }
+.chip.sc-run.active  { background: var(--c-green);  border-color: var(--c-green); }
+.chip.sc-pend.active { background: var(--c-yellow); border-color: var(--c-yellow); color: #151515; }
+.chip.sc-nr.active   { background: var(--c-orange); border-color: var(--c-orange); }
+.chip.sc-err.active  { background: var(--c-red);    border-color: var(--c-red); }
+.chip.sc-suc.active  { background: var(--c-blue);   border-color: var(--c-blue); }
+.cdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* selects */
+.fsel { border: 1px solid var(--border); background: var(--bg-input); color: var(--text-1); border-radius: 4px; padding: 5px 8px; font-size: 11px; font-family: 'Red Hat Mono', monospace; outline: none; transition: border-color .15s; }
+.fsel:focus { border-color: var(--rh-red); }
+
+.clear-btn { background: none; border: none; color: var(--text-3); font-size: 11px; text-decoration: underline; padding: 3px 5px; transition: color .15s; }
+.clear-btn:hover { color: var(--rh-red); }
+.frc { margin-left: auto; font-size: 11px; font-family: 'Red Hat Mono', monospace; color: var(--text-3); flex-shrink: 0; white-space: nowrap; }
+
+/* ═══════════════════════════════════════════════════════
+   MAIN
+═══════════════════════════════════════════════════════ */
+.main { max-width: 1660px; margin: 0 auto; padding: 16px 20px 64px; }
+
+/* ═══════════════════════════════════════════════════════
+   SUMMARY TILES — clickable
+═══════════════════════════════════════════════════════ */
+.sum-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 10px; margin-bottom: 14px;
+}
+.sum-tile {
+  background: var(--bg-card); border: 1px solid var(--border-card);
+  border-radius: var(--radius); padding: 13px 15px;
+  box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
+  cursor: pointer; user-select: none;
+  transition: box-shadow .18s, transform .15s, border-color .15s;
+}
+.sum-tile::before {
+  content: ''; position: absolute; top: 0; left: 0;
+  width: 3px; height: 100%; border-radius: var(--radius) 0 0 var(--radius);
+}
+.sum-tile:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.sum-tile.tactive {
+  box-shadow: 0 0 0 2px var(--rh-red), var(--shadow-md);
+  transform: translateY(-1px);
+}
+.sum-tile.t-red::before    { background: var(--rh-red); }
+.sum-tile.t-green::before  { background: var(--c-green); }
+.sum-tile.t-yellow::before { background: var(--c-yellow); }
+.sum-tile.t-orange::before { background: var(--c-orange); }
+.sum-tile.t-red-e::before  { background: var(--c-red); }
+.sum-tile.t-gray::before   { background: var(--c-gray); }
+.sum-lbl  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); margin-bottom: 4px; }
+.sum-val  { font-family: 'Red Hat Display', sans-serif; font-size: 30px; font-weight: 900; line-height: 1; color: var(--text-1); }
+.sum-val.alert { color: var(--c-red); }
+.sum-sub  { font-size: 10px; color: var(--text-3); font-family: 'Red Hat Mono', monospace; margin-top: 3px; }
+/* hover hint */
+.sum-tile::after {
+  content: attr(data-hint);
+  position: absolute; bottom: 7px; right: 9px;
+  font-size: 9px; color: var(--rh-red); opacity: 0;
+  font-family: 'Red Hat Mono', monospace;
+  transition: opacity .15s;
+}
+.sum-tile:hover::after { opacity: 1; }
+.sum-tile.tactive::after { opacity: 1; }
+
+/* ═══════════════════════════════════════════════════════
+   NODE STRIP — collapsible
+═══════════════════════════════════════════════════════ */
+.node-coll { margin-bottom: 14px; }
+.node-tbtn {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--bg-card); border: 1px solid var(--border-card);
+  border-radius: 6px; padding: 7px 12px;
+  font-size: 11px; font-family: 'Red Hat Mono', monospace;
+  color: var(--text-2); cursor: pointer; width: 100%;
+  text-align: left; box-shadow: var(--shadow-sm); transition: background .15s;
+}
+.node-tbtn:hover { background: var(--border-card); }
+.ntgl-ico { transition: transform .2s; flex-shrink: 0; }
+.ntgl-ico.open { transform: rotate(90deg); }
+.node-strip { display: none; flex-wrap: wrap; gap: 7px; padding: 10px 0 4px; }
+.node-strip.open { display: flex; }
+.nc { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 4px; padding: 4px 10px; font-size: 11px; font-family: 'Red Hat Mono', monospace; display: flex; align-items: center; gap: 5px; box-shadow: var(--shadow-sm); }
+.ndot     { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.ndot.ok  { background: var(--c-green); }
+.ndot.ng  { background: var(--c-red); }
+.nrole    { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; }
+.nrole.cp { background: rgba(200,0,26,.1); color: var(--rh-red); }
+.nrole.wk { background: rgba(0,102,204,.1); color: var(--c-blue); }
+
+/* ═══════════════════════════════════════════════════════
+   SECTION HEADER
+═══════════════════════════════════════════════════════ */
+.sec-hdr { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; }
+.sec-title { font-family: 'Red Hat Display', sans-serif; font-size: 16px; font-weight: 700; color: var(--text-1); display: flex; align-items: center; gap: 7px; }
+.sec-dot { width: 8px; height: 8px; background: var(--rh-red); border-radius: 50%; flex-shrink: 0; }
+.bcount { background: var(--rh-red); color: #fff; font-size: 10px; font-weight: 700; font-family: 'Red Hat Mono', monospace; border-radius: 10px; padding: 2px 8px; }
+
+/* ═══════════════════════════════════════════════════════
+   NS GRID
+═══════════════════════════════════════════════════════ */
+.ns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)); gap: 14px; }
+
+/* ═══════════════════════════════════════════════════════
+   NS CARD
+═══════════════════════════════════════════════════════ */
+.ns-card {
+  background: var(--bg-card); border: 1px solid var(--border-card);
+  border-radius: 8px; box-shadow: var(--shadow-sm); overflow: hidden;
+  transition: box-shadow .2s, transform .15s;
+  display: flex; flex-direction: column;
+}
+.ns-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.ns-card.h-critical { border-top: 3px solid var(--c-red); }
+.ns-card.h-warning  { border-top: 3px solid var(--c-yellow); }
+.ns-card.h-healthy  { border-top: 3px solid var(--c-green); }
+
+/* card header */
+.card-hdr { padding: 11px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-card); }
+.ns-name  { font-family: 'Red Hat Display', sans-serif; font-size: 14px; font-weight: 700; color: var(--text-1); display: flex; align-items: center; gap: 7px; }
+.ns-ico   { width: 20px; height: 20px; background: rgba(200,0,26,.08); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--rh-red); flex-shrink: 0; }
+.hbdg     { font-size: 10px; font-weight: 700; font-family: 'Red Hat Mono', monospace; padding: 2px 9px; border-radius: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.hbdg.healthy  { background: var(--c-green-bg);  color: var(--c-green); }
+.hbdg.warning  { background: var(--c-yellow-bg); color: var(--c-yellow); }
+.hbdg.critical { background: var(--c-red-bg);    color: var(--c-red); }
+
+/* workload row — clickable counters */
+.wl-row { display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid var(--border-card); }
+.wl-s   { padding: 8px 10px; text-align: center; border-right: 1px solid var(--border-card); cursor: pointer; transition: background .15s; position: relative; }
+.wl-s:last-child { border-right: none; cursor: default; }
+.wl-s:not(:last-child):hover { background: var(--bg-page); }
+.wl-v   { font-family: 'Red Hat Display', sans-serif; font-size: 20px; font-weight: 800; color: var(--text-1); }
+.wl-l   { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); font-weight: 700; margin-top: 1px; }
+.wl-caret { font-size: 8px; color: var(--text-3); }
+
+/* workload expandable detail */
+.wl-detail { display: none; border-bottom: 1px solid var(--border-card); padding: 0; overflow: hidden; }
+.wl-detail.open { display: block; }
+.wl-detail-inner { padding: 8px 14px; }
+.wl-detail-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); margin-bottom: 5px; }
+.wl-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border-card); font-size: 11px; }
+.wl-item:last-child { border-bottom: none; }
+.wl-iname { font-family: 'Red Hat Mono', monospace; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 65%; }
+.wl-iready { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 8px; font-family: 'Red Hat Mono', monospace; }
+.wl-iready.ok  { background: var(--c-green-bg);  color: var(--c-green); }
+.wl-iready.deg { background: var(--c-red-bg);    color: var(--c-red); }
+
+/* pod bar */
+.bar-wrap { padding: 10px 14px 7px; }
+.bar-top  { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-2); font-weight: 600; margin-bottom: 5px; }
+.pod-bar  { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; display: flex; }
+.pb { height: 100%; transition: width .4s ease; }
+.pb-run  { background: var(--c-green); }
+.pb-pend { background: var(--c-yellow); }
+.pb-nr   { background: var(--c-orange); }
+.pb-err  { background: var(--c-red); }
+.pb-suc  { background: var(--c-blue); }
+.legend  { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.lgi     { display: flex; align-items: center; gap: 3px; font-size: 9px; color: var(--text-2); font-family: 'Red Hat Mono', monospace; }
+.lgd     { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* error breakdown chips */
+.err-chips { display: flex; gap: 4px; flex-wrap: wrap; padding: 0 14px 9px; }
+.ebc { font-size: 10px; font-family: 'Red Hat Mono', monospace; font-weight: 600; padding: 2px 7px; border-radius: 10px; border: 1px solid; cursor: pointer; transition: opacity .15s; }
+.ebc:hover { opacity: .7; }
+
+/* ═══════════════════════════════════════════════════════
+   POD TABLE
+═══════════════════════════════════════════════════════ */
+.pod-sec { padding: 0 14px 12px; }
+.pod-sec-hdr { display: flex; align-items: center; justify-content: space-between; padding: 8px 0 5px; border-top: 1px solid var(--border-card); }
+.pod-sec-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); }
+.pod-sec-count { font-size: 10px; font-family: 'Red Hat Mono', monospace; color: var(--text-3); }
+
+/* sortable column headers */
+.pod-col-hdr {
+  display: grid;
+  grid-template-columns: 14px 1fr 105px 112px 38px 34px;
+  gap: 5px; padding: 3px 7px 3px; margin-bottom: 2px;
+  border-bottom: 1px solid var(--border-card);
+}
+.pch {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text-3);
+  display: flex; align-items: center; gap: 2px;
+  cursor: pointer; user-select: none; white-space: nowrap;
+  transition: color .12s; padding: 2px 0;
+}
+.pch:hover    { color: var(--rh-red); }
+.pch.sorted   { color: var(--rh-red); }
+.pch.no-sort  { cursor: default; }
+.pch-arr { font-size: 8px; line-height: 1; }
+
+.pod-list { display: flex; flex-direction: column; gap: 2px; }
+.pod-row  {
+  display: grid;
+  grid-template-columns: 14px 1fr 105px 112px 38px 34px;
+  gap: 5px; align-items: center;
+  padding: 5px 7px; border-radius: 4px;
+  background: var(--bg-page); font-size: 11px;
+  transition: background .1s;
+}
+.pod-row:hover { background: var(--border-card); }
+
+/* status dot */
+.pd { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.pd.running     { background: var(--c-green);  box-shadow: 0 0 0 2px rgba(62,134,53,.2); }
+.pd.pending     { background: var(--c-yellow); animation: blink 1.8s infinite; }
+.pd.not-ready   { background: var(--c-orange); }
+.pd.failed      { background: var(--c-red);    box-shadow: 0 0 0 2px rgba(201,25,11,.2); }
+.pd.crashloop   { background: var(--c-red);    animation: blink 1s infinite; }
+.pd.oomkilled   { background: var(--c-red); }
+.pd.imagepull   { background: var(--c-purple); }
+.pd.configerror { background: var(--c-orange); }
+.pd.unschedulable { background: var(--c-gray); }
+.pd.terminating { background: var(--c-yellow); opacity: .6; }
+.pd.succeeded   { background: var(--c-blue); }
+.pd.unknown     { background: var(--c-gray); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+.pname { font-family: 'Red Hat Mono', monospace; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pnode { font-size: 10px; color: var(--text-3); background: var(--bg-card); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; font-family: 'Red Hat Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* status label pill */
+.plbl { font-size: 10px; font-weight: 600; font-family: 'Red Hat Mono', monospace; padding: 1px 6px; border-radius: 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plbl.running     { background: var(--c-green-bg);  color: var(--c-green); }
+.plbl.pending,
+.plbl.terminating { background: var(--c-yellow-bg); color: var(--c-yellow); }
+.plbl.not-ready,
+.plbl.configerror { background: var(--c-orange-bg); color: var(--c-orange); }
+.plbl.failed,
+.plbl.crashloop,
+.plbl.oomkilled,
+.plbl.imagepull   { background: var(--c-red-bg);    color: var(--c-red); }
+.plbl.unschedulable,
+.plbl.unknown     { background: var(--c-gray-bg);   color: var(--c-gray); }
+.plbl.succeeded   { background: var(--c-blue-bg);   color: var(--c-blue); }
+
+.page { font-size: 10px; font-family: 'Red Hat Mono', monospace; color: var(--text-3); text-align: center; }
+.prst { font-size: 10px; font-family: 'Red Hat Mono', monospace; color: var(--text-3); text-align: right; }
+.prst.hi { color: var(--c-red); font-weight: 700; }
+
+.no-pods { text-align: center; padding: 10px; font-size: 11px; color: var(--text-3); font-family: 'Red Hat Mono', monospace; }
+.more-btn { background: none; border: 1px dashed var(--border); border-radius: 4px; color: var(--text-3); font-size: 11px; padding: 5px; width: 100%; margin-top: 4px; transition: all .15s; }
+.more-btn:hover { border-color: var(--rh-red); color: var(--rh-red); }
+
+/* ═══════════════════════════════════════════════════════
+   EMPTY / ERROR
+═══════════════════════════════════════════════════════ */
+.empty    { grid-column: 1/-1; text-align: center; padding: 54px 24px; color: var(--text-3); }
+.empty-ico { font-size: 38px; margin-bottom: 12px; opacity: .3; }
+.empty-t  { font-family: 'Red Hat Display', sans-serif; font-size: 16px; font-weight: 700; color: var(--text-2); margin-bottom: 4px; }
+.err-bar  { background: var(--c-red-bg); border: 1px solid var(--c-red); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 14px; color: var(--c-red); font-size: 12px; display: none; align-items: center; gap: 7px; }
+.err-bar.show { display: flex; }
+
+/* ═══════════════════════════════════════════════════════
+   LOADING
+═══════════════════════════════════════════════════════ */
+.loverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 900; align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
+.loverlay.show { display: flex; }
+.spinner  { width: 40px; height: 40px; border: 4px solid rgba(200,0,26,.2); border-top-color: #C8001A; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ltxt     { color: #fff; font-family: 'Red Hat Display', sans-serif; font-size: 14px; font-weight: 600; }
+
+/* ═══════════════════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════════════════ */
+.footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-footer); border-top: 1px solid rgba(255,255,255,.07); padding: 5px 20px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-family: 'Red Hat Mono', monospace; color: rgba(255,255,255,.4); z-index: 90; }
+.fdot { width: 5px; height: 5px; border-radius: 50%; background: var(--c-green); display: inline-block; margin-right: 6px; animation: blink 2.5s infinite; }
+
+@media (max-width: 820px) {
+  .ns-grid { grid-template-columns: 1fr; }
+  .sum-grid { grid-template-columns: repeat(3, 1fr); }
+  .fbar-r1, .fbar-r2 { flex-direction: column; align-items: flex-start; }
+  .si-ns, .si-pod { width: 100%; }
+}
+
+/* ── App-Group filter (now in fbar-r2) ───────────────────────────────── */
+
+/* ── App Group Section (Collapsible) ───────────────────────────────── */
+.ag-section {
+  background: var(--bg-fbar);
+  border-bottom: 1px solid var(--border-card);
+  margin-bottom: 14px;
+}
+.ag-tbtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-fbar);
+  border: none;
+  border-bottom: 1px solid transparent;
+  padding: 10px 20px;
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: background .15s;
+}
+.ag-tbtn:hover { background: var(--bg-page); }
+.ag-tbtn.active { border-bottom-color: var(--border-card); }
+.ag-tico {
+  transition: transform .2s;
+  color: var(--text-2);
+}
+.ag-tico.open { transform: rotate(90deg); }
+.ag-sel-lbl {
+  margin-left: auto;
+  font-size: 11px;
+  font-family: 'Red Hat Mono', monospace;
+  color: var(--rh-red);
+  background: rgba(200,0,26,.08);
+  padding: 2px 10px;
+  border-radius: 12px;
+}
+.ag-panel {
+  display: none;
+  padding: 16px 20px;
+}
+.ag-panel.open { display: block; }
+.ag-controls {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.ag-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ag-select {
+  min-width: 180px;
+}
+.ag-summary {
+  border-top: 1px solid var(--border-card);
+  padding-top: 16px;
+}
+.ag-sum-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ag-sum-title span {
+  font-family: 'Red Hat Mono', monospace;
+  color: var(--rh-red);
+  font-weight: 700;
+}
+.ag-sum-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+.ag-sum-tile {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 6px;
+  padding: 12px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+.ag-sum-tile.ag-sum-green { border-top: 3px solid var(--c-green); }
+.ag-sum-tile.ag-sum-yellow { border-top: 3px solid var(--c-yellow); }
+.ag-sum-tile.ag-sum-orange { border-top: 3px solid var(--c-orange); }
+.ag-sum-tile.ag-sum-red { border-top: 3px solid var(--c-red); }
+.ag-sum-val {
+  font-family: 'Red Hat Display', sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-1);
+  margin-bottom: 4px;
+}
+.ag-sum-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-2);
+}
+
+/* ── App-group chip colours — auto-cycled via CSS vars ──────────────── */
+.ag-chip { font-size: 11px; font-weight: 600; font-family: 'Red Hat Mono', monospace;
+           padding: 3px 10px; border-radius: 12px; border: 1px solid;
+           cursor: pointer; transition: all .15s; white-space: nowrap; }
+.ag-chip:hover { opacity: .8; }
+.ag-chip.active { box-shadow: 0 0 0 2px currentColor; }
+
+/* ── Group badge on card header ─────────────────────────────────────── */
+.grp-badge { font-size: 9px; font-weight: 700; font-family: 'Red Hat Mono', monospace;
+             padding: 2px 7px; border-radius: 10px; border: 1px solid;
+             text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+
+/* ── Label tooltip on card header ───────────────────────────────────── */
+.ns-labels { display: flex; gap: 4px; flex-wrap: wrap; padding: 5px 14px 0;
+             margin-bottom: -4px; }
+.ns-lbl-tag { font-size: 9px; font-family: 'Red Hat Mono', monospace;
+              background: var(--bg-page); border: 1px solid var(--border);
+              border-radius: 3px; padding: 1px 5px; color: var(--text-3);
+              display: flex; align-items: center; gap: 2px; }
+.ns-lbl-tag .lk { color: var(--text-2); font-weight: 600; }
+.ns-lbl-tag .lv { color: var(--rh-red); }
+
+
+/* ── Auto-refresh toggle (topbar) ──────────────────────────────── */
+.ar-toggle {
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.2);
+  border-radius: 20px; padding: 3px 10px 3px 5px;
+  display: flex; align-items: center; gap: 6px;
+  color: #fff; font-size: 11px; font-weight: 500;
+  cursor: pointer; transition: background .15s; white-space: nowrap;
+}
+.ar-toggle:hover { background: rgba(255,255,255,.28); }
+.ar-toggle.ar-off { opacity: .55; }
+.ar-knob {
+  width: 24px; height: 13px; background: rgba(255,255,255,.3);
+  border-radius: 7px; position: relative; transition: background .2s; flex-shrink: 0;
+}
+.ar-knob::after {
+  content: ''; position: absolute; top: 1.5px; left: 1.5px;
+  width: 10px; height: 10px; background: #fff;
+  border-radius: 50%; transition: transform .2s;
+}
+.ar-toggle.ar-on .ar-knob  { background: rgba(62,134,53,.75); }
+.ar-toggle.ar-on .ar-knob::after { transform: translateX(11px); }
+.cd-wrap {
+  font-family: 'Red Hat Mono', monospace; font-size: 12px;
+  color: rgba(255,255,255,.75); display: flex; align-items: center; gap: 5px;
+}
+.cd-wrap.ar-off { opacity: .35; }
+
+/* ── Settings icon button ──────────────────────────────────────── */
+.settings-btn {
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.2);
+  color: #fff; border-radius: 4px; width: 30px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .15s; position: relative;
+  flex-shrink: 0;
+}
+.settings-btn:hover { background: rgba(255,255,255,.28); }
+.settings-btn.open  { background: rgba(255,255,255,.28); }
+
+/* ── Settings popover ──────────────────────────────────────────── */
+.settings-popover {
+  display: none; position: absolute; top: calc(100% + 8px); right: 0;
+  background: var(--bg-card); border: 1px solid var(--border-card);
+  border-radius: 8px; padding: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  width: 240px; z-index: 400;
+}
+.settings-popover.open { display: block; }
+.settings-pos { position: relative; }  /* parent for popover positioning */
+
+.sp-title {
+  font-family: 'Red Hat Display', sans-serif; font-weight: 700;
+  font-size: 13px; color: var(--text-1); margin-bottom: 14px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--border-card);
+  display: flex; align-items: center; gap: 6px;
+}
+.sp-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.sp-row:last-child { margin-bottom: 0; }
+.sp-lbl {
+  font-size: 12px; color: var(--text-2); font-weight: 500;
+}
+.sp-lbl small { display: block; font-size: 10px; color: var(--text-3); font-weight: 400; margin-top: 1px; }
+
+/* inline toggle inside popover */
+.sp-toggle {
+  width: 36px; height: 20px; background: var(--border);
+  border-radius: 10px; position: relative; cursor: pointer;
+  transition: background .2s; flex-shrink: 0; border: none;
+}
+.sp-toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; background: #fff;
+  border-radius: 50%; transition: transform .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.sp-toggle.on { background: var(--c-green); }
+.sp-toggle.on::after { transform: translateX(16px); }
+
+/* interval stepper inside popover */
+.sp-stepper {
+  display: flex; align-items: center; gap: 5px;
+}
+.sp-stepper button {
+  width: 24px; height: 24px; border: 1px solid var(--border);
+  background: var(--bg-page); border-radius: 4px;
+  color: var(--text-2); font-size: 14px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .15s; flex-shrink: 0;
+}
+.sp-stepper button:hover { border-color: var(--rh-red); color: var(--rh-red); }
+.sp-num {
+  width: 40px; text-align: center; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--bg-input); color: var(--text-1);
+  font-family: 'Red Hat Mono', monospace; font-size: 13px;
+  font-weight: 700; padding: 3px 0; outline: none;
+  -moz-appearance: textfield;
+}
+.sp-num::-webkit-inner-spin-button,
+.sp-num::-webkit-outer-spin-button { -webkit-appearance: none; }
+.sp-num:focus { border-color: var(--rh-red); }
+.sp-unit { font-size: 11px; color: var(--text-3); }
+
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loverlay" id="loverlay">
+  <div class="spinner"></div>
+  <div class="ltxt">Querying cluster API…</div>
+</div>
+
+<!-- ═══ TOPBAR ════════════════════════════════════════════ -->
+<header class="topbar">
+  <div class="tb-brand">
+    <div class="tb-title">OpenShift Workload Monitoring Dashboard</div>
+    <div class="tb-sub">OpenShift · Namespace &amp; Workload Observability</div>
+  </div>
+  <div class="tb-space"></div>
+  <div class="tb-acts">
+
+    <!-- Auto-refresh toggle -->
+    <button class="ar-toggle ar-on" id="arToggle" onclick="toggleAutoRefresh()" title="Toggle auto-refresh">
+      <div class="ar-knob"></div>
+      <span id="arLbl">Auto</span>
+    </button>
+
+    <!-- Countdown -->
+    <div class="cd-wrap" id="cdWrap">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span id="countdown">10:00</span>
+    </div>
+
+    <!-- Manual refresh -->
+    <button class="tb-btn" onclick="fetchData()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      Refresh
+    </button>
+
+    <!-- Settings icon → popover -->
+    <div class="settings-pos">
+      <button class="settings-btn" id="settingsBtn" onclick="toggleSettings()" title="Settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+      <div class="settings-popover" id="settingsPopover">
+        <div class="sp-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Dashboard Settings
+        </div>
+        <!-- Auto Refresh toggle row -->
+        <div class="sp-row">
+          <div class="sp-lbl">
+            Auto Refresh
+            <small>Refresh data automatically</small>
+          </div>
+          <button class="sp-toggle on" id="spArToggle" onclick="toggleAutoRefresh()"></button>
+        </div>
+        <!-- Interval stepper row -->
+        <div class="sp-row" id="spIntervalRow">
+          <div class="sp-lbl">
+            Interval
+            <small>Minutes between refreshes</small>
+          </div>
+          <div class="sp-stepper">
+            <button onclick="stepInterval(-1)">−</button>
+            <input class="sp-num" id="spInterval" type="number" min="1" max="60" value="10"
+                   onchange="updateInterval()" onblur="updateInterval()"/>
+            <button onclick="stepInterval(1)">+</button>
+            <span class="sp-unit">min</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="tgl" onclick="toggleTheme()">
+      <div class="tgl-k"></div>
+      <span id="tglLbl">Light</span>
+    </button>
+  </div>
+</header>
+
+<!-- ═══ HEALTH BANNER ════════════════════════════════════ -->
+<div class="hbanner" id="hbanner">
+  <div class="hb-pulse"></div>
+  <span id="hb-text">—</span>
+  <span class="hb-right" id="hb-right"></span>
+</div>
+
+<!-- ═══ FILTER BAR ════════════════════════════════════════ -->
+<div class="fbar">
+
+  <!-- Row 1: primary filters -->
+  <div class="fbar-r1">
+
+    <!-- Namespace search -->
+    <div class="si-wrap">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="si si-ns" id="nsSearch" type="text" placeholder="Search namespaces… (comma separated)" oninput="applyFilters()" autocomplete="off" spellcheck="false"/>
+    </div>
+
+    <div class="vsep"></div>
+
+    <!-- Health chips -->
+    <div class="fg">
+      <span class="flbl">Health</span>
+      <button class="chip active" data-g="health" data-v="all"      onclick="setChip('health','all',this)">All</button>
+      <button class="chip"        data-g="health" data-v="healthy"  onclick="setChip('health','healthy',this)"><span class="cdot" style="background:var(--c-green)"></span>Healthy</button>
+      <button class="chip"        data-g="health" data-v="warning"  onclick="setChip('health','warning',this)"><span class="cdot" style="background:var(--c-yellow)"></span>Warning</button>
+      <button class="chip"        data-g="health" data-v="critical" onclick="setChip('health','critical',this)"><span class="cdot" style="background:var(--c-red)"></span>Critical</button>
+    </div>
+
+    <div class="vsep"></div>
+
+    <!-- Sort -->
+    <div class="fg">
+      <span class="flbl">Sort</span>
+      <select class="fsel" id="sortBy" onchange="applyFilters()">
+        <option value="critical">Critical first</option>
+        <option value="alpha">A → Z</option>
+        <option value="alpha-desc">Z → A</option>
+        <option value="pods-desc">Most pods</option>
+        <option value="pods-asc">Fewest pods</option>
+        <option value="errors-desc">Most errors</option>
+      </select>
+    </div>
+
+    <div class="vsep"></div>
+
+    <!-- Advanced toggle -->
+    <button class="adv-toggle" id="advToggle" onclick="toggleAdv()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+      Pod Filters
+    </button>
+
+    <button class="clear-btn" onclick="clearAll()">Clear all</button>
+    <span class="frc" id="frc"></span>
+  </div>
+
+  <!-- Row 2: advanced pod filters (collapsed by default) -->
+  <div class="fbar-r2" id="advRow">
+
+    <!-- Pod status chips -->
+    <div class="fg">
+      <span class="flbl">Pod Status</span>
+      <button class="chip active"   data-g="ps" data-v="all"          onclick="setChip('ps','all',this)">All</button>
+      <button class="chip sc-run"   data-g="ps" data-v="running"      onclick="setChip('ps','running',this)"><span class="cdot" style="background:var(--c-green)"></span>Running</button>
+      <button class="chip sc-pend"  data-g="ps" data-v="pending"      onclick="setChip('ps','pending',this)"><span class="cdot" style="background:var(--c-yellow)"></span>Pending</button>
+      <button class="chip sc-nr"    data-g="ps" data-v="not-ready"    onclick="setChip('ps','not-ready',this)"><span class="cdot" style="background:var(--c-orange)"></span>Not Ready</button>
+      <button class="chip sc-err"   data-g="ps" data-v="error"        onclick="setChip('ps','error',this)"><span class="cdot" style="background:var(--c-red)"></span>Error / Failed</button>
+      <button class="chip sc-err"   data-g="ps" data-v="crashloop"    onclick="setChip('ps','crashloop',this)">CrashLoop</button>
+      <button class="chip sc-err"   data-g="ps" data-v="imagepull"    onclick="setChip('ps','imagepull',this)">ImagePull</button>
+      <button class="chip sc-err"   data-g="ps" data-v="oomkilled"    onclick="setChip('ps','oomkilled',this)">OOMKilled</button>
+      <button class="chip sc-nr"    data-g="ps" data-v="configerror"  onclick="setChip('ps','configerror',this)">ConfigError</button>
+      <button class="chip"          data-g="ps" data-v="unschedulable" onclick="setChip('ps','unschedulable',this)">Unschedulable</button>
+      <button class="chip sc-suc"   data-g="ps" data-v="succeeded"    onclick="setChip('ps','succeeded',this)"><span class="cdot" style="background:var(--c-blue)"></span>Succeeded</button>
+    </div>
+
+    <div class="vsep"></div>
+
+    <!-- Pod name search -->
+    <div class="si-wrap">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="si si-pod" id="podSearch" type="text" placeholder="Filter pod names…" oninput="applyFilters()" autocomplete="off" spellcheck="false"/>
+    </div>
+
+    <div class="vsep"></div>
+
+    <!-- Node filter -->
+    <div class="fg">
+      <span class="flbl">Node</span>
+      <select class="fsel" id="nodeFilter" onchange="applyFilters()">
+        <option value="all">All nodes</option>
+      </select>
+    </div>
+
+  </div><!-- /fbar-r2 -->
+</div><!-- /fbar -->
+
+<!-- ═══ MAIN ══════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- Error bar -->
+  <div class="err-bar" id="errBar">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span id="errMsg"></span>
+  </div>
+
+  <!-- Summary tiles -->
+  <div class="sum-grid">
+    <div class="sum-tile t-red"   data-hint="show all"    onclick="tileClick('all')">
+      <div class="sum-lbl">Namespaces</div>
+      <div class="sum-val" id="sNS">—</div>
+      <div class="sum-sub">user workloads</div>
+    </div>
+    <div class="sum-tile t-red"   data-hint="show all"    onclick="tileClick('dep')">
+      <div class="sum-lbl">Deployments</div>
+      <div class="sum-val" id="sDep">—</div>
+      <div class="sum-sub">across all ns</div>
+    </div>
+    <div class="sum-tile t-red"   data-hint="show all"    onclick="tileClick('sts')">
+      <div class="sum-lbl">StatefulSets</div>
+      <div class="sum-val" id="sSTS">—</div>
+      <div class="sum-sub">across all ns</div>
+    </div>
+    <div class="sum-tile t-gray"  data-hint="expand nodes" onclick="tileClick('nodes')">
+      <div class="sum-lbl">Cluster Nodes</div>
+      <div class="sum-val" id="sNodes">—</div>
+      <div class="sum-sub" id="sNodesReady">0 ready</div>
+    </div>
+    <div class="sum-tile t-green"  data-hint="filter ↓"   onclick="tileClick('running')">
+      <div class="sum-lbl">Running Pods</div>
+      <div class="sum-val" id="sPRun">—</div>
+      <div class="sum-sub">healthy</div>
+    </div>
+    <div class="sum-tile t-yellow" data-hint="filter ↓"   onclick="tileClick('pending')">
+      <div class="sum-lbl">Pending Pods</div>
+      <div class="sum-val" id="sPPend">—</div>
+      <div class="sum-sub">scheduling / init</div>
+    </div>
+    <div class="sum-tile t-orange" data-hint="filter ↓"   onclick="tileClick('not-ready')">
+      <div class="sum-lbl">Not Ready</div>
+      <div class="sum-val" id="sPNR">—</div>
+      <div class="sum-sub">containers not ready</div>
+    </div>
+    <div class="sum-tile t-red-e"  data-hint="filter ↓"   onclick="tileClick('error')">
+      <div class="sum-lbl">Pods in Error</div>
+      <div class="sum-val alert" id="sPErr">—</div>
+      <div class="sum-sub">crash / fail / imagepull</div>
+    </div>
+  </div>
+
+  <!-- ═══ APP GROUP FILTER SECTION (Collapsible) ═══════════════ -->
+  <div class="ag-section" id="agSection">
+    <button class="ag-tbtn" id="agTbtn" onclick="toggleAgSection()">
+      <svg class="ag-tico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      <span>App Group Filter</span>
+      <span id="agSelected" class="ag-sel-lbl" style="display:none"></span>
+    </button>
+
+    <div class="ag-panel" id="agPanel">
+      <!-- Filter controls -->
+      <div class="ag-controls">
+        <div class="ag-select-wrap">
+          <label class="flbl">Select Label</label>
+          <select class="fsel ag-select" id="agSelect" onchange="onAgSelect(this.value)">
+            <option value="all">All Labels</option>
+          </select>
+        </div>
+        <button class="clear-btn" id="agClearBtn" onclick="clearAgFilter()" style="display:none;margin-left:12px">Clear Filter</button>
+      </div>
+
+      <!-- Executive Summary for selected label -->
+      <div class="ag-summary" id="agSummary" style="display:none">
+        <div class="ag-sum-title">Executive Summary for <span id="agSumLabel">—</span></div>
+        <div class="ag-sum-grid">
+          <div class="ag-sum-tile">
+            <div class="ag-sum-val" id="agSumNS">0</div>
+            <div class="ag-sum-lbl">Namespaces</div>
+          </div>
+          <div class="ag-sum-tile">
+            <div class="ag-sum-val" id="agSumDep">0</div>
+            <div class="ag-sum-lbl">Deployments</div>
+          </div>
+          <div class="ag-sum-tile">
+            <div class="ag-sum-val" id="agSumSTS">0</div>
+            <div class="ag-sum-lbl">StatefulSets</div>
+          </div>
+          <div class="ag-sum-tile ag-sum-green">
+            <div class="ag-sum-val" id="agSumRun">0</div>
+            <div class="ag-sum-lbl">Running Pods</div>
+          </div>
+          <div class="ag-sum-tile ag-sum-yellow">
+            <div class="ag-sum-val" id="agSumPend">0</div>
+            <div class="ag-sum-lbl">Pending Pods</div>
+          </div>
+          <div class="ag-sum-tile ag-sum-orange">
+            <div class="ag-sum-val" id="agSumNR">0</div>
+            <div class="ag-sum-lbl">Not Ready</div>
+          </div>
+          <div class="ag-sum-tile ag-sum-red">
+            <div class="ag-sum-val" id="agSumErr">0</div>
+            <div class="ag-sum-lbl">Error Pods</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nodes — collapsible -->
+  <div class="node-coll">
+    <button class="node-tbtn" onclick="toggleNodes(this)">
+      <svg class="ntgl-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      <span id="nodeLbl">Cluster Nodes</span>
+      <span id="nodeCount" style="margin-left:4px;opacity:.6"></span>
+    </button>
+    <div class="node-strip" id="nodeStrip"></div>
+  </div>
+
+  <!-- Section header -->
+  <div class="sec-hdr">
+    <div class="sec-title">
+      <div class="sec-dot"></div>
+      Namespace Workloads
+      <span class="bcount" id="nsVis">0</span>
+    </div>
+  </div>
+
+  <div class="ns-grid" id="nsGrid">
+    <div class="empty">
+      <div class="empty-ico">⧗</div>
+      <div class="empty-t">Connecting to cluster…</div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  <div><span class="fdot"></span>OpenShift Workload Monitoring · in-cluster SA</div>
+  <div id="lastUp">—</div>
+</footer>
+
+<script>
+'use strict';
+
+/* ── State ──────────────────────────────────────────── */
+let cdSec = 600, cdTimer = null, dashData = null;
+let arOn = true;          // auto-refresh enabled
+let arIntervalMin = 10;   // interval in minutes (user-configurable)
+
+let podSort = { col: 'name', dir: 1 };
+const F = { ns: [], pod: '', health: 'all', ps: 'all', node: 'all', appGroup: 'all' };
+const AG_COLORS = [
+  {bg:'#EEF6FF',border:'#0066CC',color:'#0066CC'},  // blue
+  {bg:'#EFF6EE',border:'#3E8635',color:'#3E8635'},  // green
+  {bg:'#FFF9EC',border:'#F0AB00',color:'#8a6000'},  // yellow
+  {bg:'#F5F0FF',border:'#7B4FA6',color:'#7B4FA6'},  // purple
+  {bg:'#FFF2E5',border:'#EC7A08',color:'#8a4000'},  // orange
+  {bg:'#FAEAE8',border:'#C9190B',color:'#C9190B'},  // red
+  {bg:'#F2F2F2',border:'#6A6E73',color:'#3d3f42'},  // gray
+];
+let agColorMap = {};  // label value → color index
+let NO_LABEL_VALUE = '__no_label__';
+
+const PS_GROUPS = {
+  running:       ['running'],
+  pending:       ['pending', 'terminating'],
+  'not-ready':   ['not-ready'],
+  error:         ['failed','crashloop','oomkilled','imagepull','configerror','unschedulable','unknown'],
+  crashloop:     ['crashloop'],
+  imagepull:     ['imagepull'],
+  oomkilled:     ['oomkilled'],
+  configerror:   ['configerror'],
+  unschedulable: ['unschedulable'],
+  succeeded:     ['succeeded'],
+  all:           null,
+};
+
+/* ── Theme ──────────────────────────────────────────── */
+function toggleTheme() {
+  const h = document.documentElement, dark = h.dataset.theme === 'dark';
+  h.dataset.theme = dark ? 'light' : 'dark';
+  document.getElementById('tglLbl').textContent = dark ? 'Light' : 'Dark';
+  localStorage.setItem('ocp-th', h.dataset.theme);
+}
+(() => {
+  const t = localStorage.getItem('ocp-th') || 'light';
+  document.documentElement.dataset.theme = t;
+  document.getElementById('tglLbl').textContent = t === 'dark' ? 'Dark' : 'Light';
+})();
+
+/* ── Auto-refresh & Countdown ──────────────────────── */
+function toggleAutoRefresh() {
+  arOn = !arOn;
+  syncArUI();
+  localStorage.setItem('ocp-ar', arOn ? '1' : '0');
+  if (arOn) startCd(); else stopCd();
+}
+
+function syncArUI() {
+  // Topbar toggle
+  const tb  = document.getElementById('arToggle');
+  const cdw = document.getElementById('cdWrap');
+  const lbl = document.getElementById('arLbl');
+  if (tb)  { tb.classList.toggle('ar-on', arOn); tb.classList.toggle('ar-off', !arOn); }
+  if (cdw) cdw.classList.toggle('ar-off', !arOn);
+  if (lbl) lbl.textContent = arOn ? 'Auto' : 'Off';
+  // Popover toggle
+  const sp = document.getElementById('spArToggle');
+  if (sp)  sp.classList.toggle('on', arOn);
+  // Dim interval row when off
+  const ir = document.getElementById('spIntervalRow');
+  if (ir)  ir.style.opacity = arOn ? '1' : '.4';
+}
+
+function toggleSettings() {
+  const pop = document.getElementById('settingsPopover');
+  const btn = document.getElementById('settingsBtn');
+  const open = pop.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  // Close when clicking outside
+  if (open) {
+    setTimeout(() => {
+      document.addEventListener('click', closeSettingsOutside, { once: true });
+    }, 0);
+  }
+}
+function closeSettingsOutside(e) {
+  const pop = document.getElementById('settingsPopover');
+  const btn = document.getElementById('settingsBtn');
+  if (!pop.contains(e.target) && !btn.contains(e.target)) {
+    pop.classList.remove('open');
+    btn.classList.remove('open');
+  }
+}
+
+function stepInterval(delta) {
+  const inp = document.getElementById('spInterval');
+  let v = (parseInt(inp.value, 10) || arIntervalMin) + delta;
+  if (v < 1)  v = 1;
+  if (v > 60) v = 60;
+  inp.value = v;
+  updateInterval();
+}
+
+function updateInterval() {
+  const inp = document.getElementById('spInterval');
+  let v = parseInt(inp.value, 10);
+  if (isNaN(v) || v < 1)  v = 1;
+  if (v > 60)             v = 60;
+  inp.value = v;
+  arIntervalMin = v;
+  localStorage.setItem('ocp-ar-min', v);
+  if (arOn) startCd();
+}
+
+function startCd() {
+  clearInterval(cdTimer);
+  cdSec = arIntervalMin * 60;
+  tick();
+  cdTimer = setInterval(() => {
+    cdSec--;
+    tick();
+    if (cdSec <= 0 && arOn) fetchData();
+  }, 1000);
+}
+
+function stopCd() {
+  clearInterval(cdTimer);
+  cdTimer = null;
+  document.getElementById('countdown').textContent = '--:--';
+}
+
+function tick() {
+  const m = String(Math.floor(cdSec / 60)).padStart(2,'0');
+  const s = String(cdSec % 60).padStart(2,'0');
+  document.getElementById('countdown').textContent = `${m}:${s}`;
+}
+
+// Restore AR preferences from localStorage
+(() => {
+  const savedOn  = localStorage.getItem('ocp-ar');
+  const savedMin = localStorage.getItem('ocp-ar-min');
+  if (savedOn === '0') arOn = false;
+  if (savedMin) {
+    arIntervalMin = Math.min(60, Math.max(1, parseInt(savedMin, 10)));
+    const inp = document.getElementById('spInterval');
+    if (inp) inp.value = arIntervalMin;
+  }
+  syncArUI();
+})();
+
+/* ── Advanced filter toggle ─────────────────────────── */
+function toggleAdv() {
+  const row = document.getElementById('advRow');
+  const btn = document.getElementById('advToggle');
+  const open = row.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  btn.querySelector('svg').style.transform = open ? 'rotate(180deg)' : '';
+}
+
+/* ── Tile click ─────────────────────────────────────── */
+function tileClick(type) {
+  // Clear all tile highlights
+  document.querySelectorAll('.sum-tile').forEach(t => t.classList.remove('tactive'));
+
+  if (type === 'nodes') {
+    const strip = document.getElementById('nodeStrip');
+    const btn   = document.querySelector('.node-tbtn');
+    if (!strip.classList.contains('open')) {
+      strip.classList.add('open');
+      btn.querySelector('.ntgl-ico').classList.add('open');
+    }
+    strip.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
+  if (type === 'dep' || type === 'sts' || type === 'all') {
+    // Just reset pod filter to all — show all namespaces
+    activatePsChip('all');
+    return;
+  }
+
+  // Pod status tiles
+  const psMap = { running: 'running', pending: 'pending', 'not-ready': 'not-ready', error: 'error' };
+  const target = psMap[type];
+  if (!target) return;
+
+  if (F.ps === target) {
+    // Toggle off
+    activatePsChip('all');
+  } else {
+    activatePsChip(target);
+    event?.currentTarget?.classList.add('tactive');
+  }
+
+  // Auto-open pod filters row so user can see what's active
+  const advRow = document.getElementById('advRow');
+  if (!advRow.classList.contains('open')) toggleAdv();
+}
+
+function activatePsChip(val) {
+  F.ps = val;
+  document.querySelectorAll('.chip[data-g="ps"]').forEach(c => c.classList.remove('active'));
+  const chip = document.querySelector(`.chip[data-g="ps"][data-v="${val}"]`);
+  if (chip) chip.classList.add('active');
+  if (dashData) renderTiles(dashData.namespaceTiles);
+}
+
+/* ── Chip filter ────────────────────────────────────── */
+function setChip(grp, val, btn) {
+  if (grp === 'ps') F.ps = val; else F.health = val;
+  document.querySelectorAll(`.chip[data-g="${grp}"]`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Clear tile highlights when using chips directly
+  document.querySelectorAll('.sum-tile').forEach(t => t.classList.remove('tactive'));
+  applyFilters();
+}
+
+function clearAll() {
+  F.ns = []; F.pod = ''; F.health = 'all'; F.ps = 'all'; F.node = 'all';
+  document.getElementById('nsSearch').value  = '';
+  document.getElementById('podSearch').value = '';
+  document.getElementById('nodeFilter').value = 'all';
+  document.getElementById('sortBy').value     = 'critical';
+  document.querySelectorAll('.chip[data-v="all"]').forEach(b => b.classList.add('active'));
+  document.querySelectorAll('.chip:not([data-v="all"])').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sum-tile').forEach(t => t.classList.remove('tactive'));
+  clearAgFilter();
+  if (dashData) renderTiles(dashData.namespaceTiles);
+}
+
+/* ── Set AppGroup filter (helper for programmatic calls) ── */
+function setAgFilter(val) {
+  F.appGroup = val;
+  if (dashData) {
+    populateAgDropdown(dashData);
+    updateAgSummary(dashData);
+    renderTiles(dashData.namespaceTiles);
+  }
+}
+
+function clearAgFilter() {
+  F.appGroup = 'all';
+  // Reset dropdown
+  const agSelect = document.getElementById('agSelect');
+  if (agSelect) agSelect.value = 'all';
+  // Hide summary and selected label indicator
+  const agSummary = document.getElementById('agSummary');
+  const agSelected = document.getElementById('agSelected');
+  const agClearBtn = document.getElementById('agClearBtn');
+  if (agSummary) agSummary.style.display = 'none';
+  if (agSelected) agSelected.style.display = 'none';
+  if (agClearBtn) agClearBtn.style.display = 'none';
+  // Update UI
+  if (dashData) {
+    renderDash(dashData);
+    renderTiles(dashData.namespaceTiles);
+  }
+}
+
+/* ── AppGroup Section Functions ──────────────────────── */
+function toggleAgSection() {
+  const panel = document.getElementById('agPanel');
+  const btn = document.getElementById('agTbtn');
+  const icon = document.getElementById('agTbtn')?.querySelector('.ag-tico');
+  const open = panel.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  if (icon) icon.classList.toggle('open', open);
+}
+
+function populateAgDropdown(d) {
+  const agSelect = document.getElementById('agSelect');
+  if (!agSelect) return;
+
+  const agGroups = d.appGroups || [];
+  NO_LABEL_VALUE = d.noLabelValue || 'no label';
+
+  // Save current selection
+  const currentVal = agSelect.value;
+
+  // Build options
+  let opts = `<option value="all">All Labels</option>`;
+
+  // Filter out NO_LABEL_VALUE from agGroups (server may include it)
+  const labeledGroups = agGroups.filter(g => g !== NO_LABEL_VALUE);
+
+  // Add actual label groups
+  labeledGroups.forEach(g => {
+    opts += `<option value="${g}">${g}</option>`;
+  });
+
+  // Add "no label" option if namespaces exist without the label
+  const hasNoLabel = (d.namespaceTiles || []).some(t => t.appGroup === NO_LABEL_VALUE);
+  if (hasNoLabel) {
+    opts += `<option value="${NO_LABEL_VALUE}">${NO_LABEL_VALUE}</option>`;
+  }
+
+  agSelect.innerHTML = opts;
+
+  // Restore selection or set to current filter
+  if (F.appGroup !== 'all') {
+    agSelect.value = F.appGroup;
+  } else {
+    agSelect.value = 'all';
+  }
+
+  // Update selected label indicator
+  updateAgSelectedLabel();
+}
+
+function onAgSelect(val) {
+  if (val === 'all') {
+    clearAgFilter();
+    return;
+  }
+
+  // Set the filter
+  F.appGroup = val;
+
+  // Auto-expand the section to show summary
+  const panel = document.getElementById('agPanel');
+  if (!panel.classList.contains('open')) {
+    toggleAgSection();
+  }
+
+  // Update UI
+  updateAgSelectedLabel();
+  if (dashData) {
+    updateAgSummary(dashData);
+    renderTiles(dashData.namespaceTiles);
+  }
+}
+
+function updateAgSelectedLabel() {
+  const agSelected = document.getElementById('agSelected');
+  const agClearBtn = document.getElementById('agClearBtn');
+
+  if (F.appGroup !== 'all') {
+    agSelected.textContent = F.appGroup;
+    agSelected.style.display = 'inline-block';
+    if (agClearBtn) agClearBtn.style.display = 'inline-block';
+  } else {
+    agSelected.style.display = 'none';
+    if (agClearBtn) agClearBtn.style.display = 'none';
+  }
+}
+
+function updateAgSummary(d) {
+  const agSummary = document.getElementById('agSummary');
+  if (!agSummary) return;
+
+  if (F.appGroup === 'all') {
+    agSummary.style.display = 'none';
+    return;
+  }
+
+  // Get namespaces matching the selected label
+  const matchingNS = (d.namespaceTiles || []).filter(t => t.appGroup === F.appGroup);
+
+  if (matchingNS.length === 0) {
+    agSummary.style.display = 'none';
+    return;
+  }
+
+  // Calculate executive summary
+  const summary = {
+    namespaces: matchingNS.length,
+    deployments: 0,
+    statefulsets: 0,
+    running: 0,
+    pending: 0,
+    notReady: 0,
+    error: 0
+  };
+
+  matchingNS.forEach(ns => {
+    summary.deployments += ns.deployments.length;
+    summary.statefulsets += ns.statefulsets.length;
+    summary.running += ns.podSummary.running;
+    summary.pending += ns.podSummary.pending;
+    summary.notReady += ns.podSummary.notReady;
+    summary.error += ns.podSummary.error;
+  });
+
+  // Update UI
+  document.getElementById('agSumLabel').textContent = F.appGroup;
+  document.getElementById('agSumNS').textContent = summary.namespaces;
+  document.getElementById('agSumDep').textContent = summary.deployments;
+  document.getElementById('agSumSTS').textContent = summary.statefulsets;
+  document.getElementById('agSumRun').textContent = summary.running;
+  document.getElementById('agSumPend').textContent = summary.pending;
+  document.getElementById('agSumNR').textContent = summary.notReady;
+  document.getElementById('agSumErr').textContent = summary.error;
+
+  agSummary.style.display = 'block';
+}
+
+function applyFilters() {
+  // Multi-search: split on comma or whitespace, trim, drop empty
+  F.ns = document.getElementById('nsSearch').value.trim().toLowerCase()
+           .split(',').map(s => s.trim()).filter(Boolean);
+  F.pod  = document.getElementById('podSearch').value.trim().toLowerCase();
+  F.node = document.getElementById('nodeFilter').value;
+  if (dashData) renderTiles(dashData.namespaceTiles);
+}
+
+/* ── Pod sort ───────────────────────────────────────── */
+function setSortCol(col) {
+  if (podSort.col === col) podSort.dir *= -1;
+  else { podSort.col = col; podSort.dir = 1; }
+  if (dashData) renderTiles(dashData.namespaceTiles);
+}
+
+function sortedPods(pods) {
+  const { col, dir } = podSort;
+  return [...pods].sort((a, b) => {
+    let av, bv;
+    if      (col === 'name')     { av = a.name;        bv = b.name; }
+    else if (col === 'node')     { av = a.nodeName;    bv = b.nodeName; }
+    else if (col === 'status')   { av = a.statusLabel; bv = b.statusLabel; }
+    else if (col === 'age')      { av = ageMs(a.age);  bv = ageMs(b.age); }
+    else if (col === 'restarts') { av = a.restarts;    bv = b.restarts; }
+    if (typeof av === 'string') return av.localeCompare(bv) * dir;
+    return (av - bv) * dir;
+  });
+}
+
+function ageMs(age) {
+  if (!age || age === '—') return 0;
+  const n = parseInt(age);
+  if (age.endsWith('d')) return n * 86400000;
+  if (age.endsWith('h')) return n * 3600000;
+  return n * 60000;
+}
+
+function sortArrow(col) {
+  if (podSort.col !== col) return '<span class="pch-arr">⇅</span>';
+  return podSort.dir === 1 ? '<span class="pch-arr">↑</span>' : '<span class="pch-arr">↓</span>';
+}
+
+/* ── Sort namespace tiles ───────────────────────────── */
+function sortTiles(tiles) {
+  const by = document.getElementById('sortBy').value;
+  const rank = { critical: 0, warning: 1, healthy: 2 };
+  return [...tiles].sort((a, b) => {
+    if (by === 'critical')     return rank[a.health] - rank[b.health] || b.podSummary.error - a.podSummary.error;
+    if (by === 'alpha')        return a.namespace.localeCompare(b.namespace);
+    if (by === 'alpha-desc')   return b.namespace.localeCompare(a.namespace);
+    if (by === 'pods-desc')    return b.podSummary.total - a.podSummary.total;
+    if (by === 'pods-asc')     return a.podSummary.total - b.podSummary.total;
+    if (by === 'errors-desc')  return b.podSummary.error - a.podSummary.error;
+    return 0;
+  });
+}
+
+/* ── Fetch ──────────────────────────────────────────── */
+async function fetchData() {
+  showLoad(true); hideErr();
+  try {
+    const r = await fetch('/api/dashboard');
+    const j = await r.json();
+    if (!j.success) throw new Error(j.error || 'API error');
+    dashData = j.data;
+    renderDash(dashData);
+    if (arOn) startCd();
+  } catch (e) {
+    showErr(e.message); console.error('[Dashboard]', e);
+  } finally {
+    showLoad(false);
+  }
+}
+
+/* ── Render Dashboard ───────────────────────────────── */
+function renderDash(d) {
+  const s = d.summary;
+  set('sNS',    s.namespaces);
+  set('sDep',   s.deployments);
+  set('sSTS',   s.statefulsets);
+  set('sNodes', s.nodes);
+  set('sNodesReady', `${s.nodesReady} of ${s.nodes} ready`);
+  set('sPRun',  s.running  ?? 0);
+  set('sPPend', s.pending  ?? 0);
+  set('sPNR',   s.notReady ?? 0);
+  set('sPErr',  s.error    ?? 0);
+  set('lastUp', `Updated: ${new Date(d.timestamp).toLocaleTimeString()}`);
+
+  // Health banner
+  const tiles = d.namespaceTiles || [];
+  const crit  = tiles.filter(t => t.health === 'critical').length;
+  const warn  = tiles.filter(t => t.health === 'warning').length;
+  const banner = document.getElementById('hbanner');
+  banner.className = 'hbanner show';
+  if (crit > 0) {
+    banner.classList.add('b-crit');
+    set('hb-text',  `Cluster Degraded — ${crit} namespace${crit > 1 ? 's' : ''} in critical state`);
+    set('hb-right', warn > 0 ? `+ ${warn} with warnings` : '');
+  } else if (warn > 0) {
+    banner.classList.add('b-warn');
+    set('hb-text',  `${warn} namespace${warn > 1 ? 's' : ''} have pending or not-ready pods`);
+    set('hb-right', `${tiles.length - warn} healthy`);
+  } else {
+    banner.classList.add('b-ok');
+    set('hb-text',  `All ${tiles.length} namespaces healthy`);
+    set('hb-right', '');
+  }
+
+  // Node dropdown
+  const sel  = document.getElementById('nodeFilter');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="all">All nodes</option>';
+  (d.nodes || []).forEach(n => {
+    const o = document.createElement('option');
+    o.value = n.name; o.textContent = shortNode(n.name); sel.appendChild(o);
+  });
+  sel.value = prev || 'all';
+
+  // ── App-group filter section (dropdown + collapsible summary) ──────────────
+  populateAgDropdown(d);
+  updateAgSummary(d);
+
+  renderNodes(d.nodes);
+  renderTiles(tiles);
+}
+
+/* ── Render Nodes ───────────────────────────────────── */
+function renderNodes(nodes) {
+  const total = (nodes || []).length;
+  const ready = (nodes || []).filter(n => n.status === 'Ready').length;
+  set('nodeCount', `(${ready}/${total} Ready)`);
+  document.getElementById('nodeStrip').innerHTML = (nodes || []).map(n => `
+    <div class="nc">
+      <div class="ndot ${n.status === 'Ready' ? 'ok' : 'ng'}"></div>
+      <span>${n.name}</span>
+      <span class="nrole ${n.role === 'control-plane' ? 'cp' : 'wk'}">${n.role === 'control-plane' ? 'CP' : 'Worker'}</span>
+      ${n.zone && n.zone !== 'N/A' ? `<span style="font-size:9px;color:var(--text-3)">${n.zone}</span>` : ''}
+    </div>`).join('');
+}
+
+function toggleNodes(btn) {
+  const strip = document.getElementById('nodeStrip');
+  const icon  = btn.querySelector('.ntgl-ico');
+  const open  = strip.classList.toggle('open');
+  icon.classList.toggle('open', open);
+}
+
+/* ── Render Tiles ───────────────────────────────────── */
+function renderTiles(tiles) {
+  const grid      = document.getElementById('nsGrid');
+  const psClasses = F.ps === 'all' ? null : (PS_GROUPS[F.ps] || [F.ps]);
+
+  let visible = tiles.filter(t => {
+    if (F.ns.length > 0 && !F.ns.some(q => t.namespace.toLowerCase().includes(q))) return false;
+    if (F.health !== 'all' && t.health !== F.health) return false;
+    if (F.appGroup !== 'all' && t.appGroup !== F.appGroup) return false;
+    // Pod status filter at namespace level only applies when appGroup is NOT filtered
+    // When appGroup is filtered, we show all matching namespaces and filter pods within them
+    if (F.appGroup === 'all' && (psClasses || F.pod || F.node !== 'all')) {
+      const has = t.pods.some(p =>
+        (!psClasses || psClasses.includes(p.statusClass)) &&
+        (!F.pod || p.name.toLowerCase().includes(F.pod)) &&
+        (F.node === 'all' || p.nodeName === F.node)
+      );
+      if (!has) return false;
+    }
+    return true;
+  });
+
+  visible = sortTiles(visible);
+
+  set('nsVis', visible.length);
+  set('frc',
+    visible.length !== tiles.length
+      ? `${visible.length} / ${tiles.length} namespaces`
+      : `${tiles.length} namespaces`
+  );
+
+  if (!visible.length) {
+    grid.innerHTML = `<div class="empty">
+      <div class="empty-ico">◎</div>
+      <div class="empty-t">No namespaces match your filters</div>
+      <div style="font-size:12px;margin-top:4px">Adjust the search or filter selections above</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = visible.map(ns => buildCard(ns, psClasses)).join('');
+}
+
+/* ── Build Card ─────────────────────────────────────── */
+function buildCard(ns, psClasses) {
+  const ps  = ns.podSummary;
+  const tot = ps.total || 1;
+  const pct = v => ((v / tot) * 100).toFixed(1);
+
+  // Filter pods
+  let filtPods = ns.pods.filter(p => {
+    if (psClasses && !psClasses.includes(p.statusClass)) return false;
+    if (F.pod && !p.name.toLowerCase().includes(F.pod)) return false;
+    if (F.node !== 'all' && p.nodeName !== F.node) return false;
+    return true;
+  });
+  filtPods = sortedPods(filtPods);
+
+  const MAX  = 8;
+  const shown = filtPods.slice(0, MAX);
+  const more  = filtPods.length - MAX;
+
+  // Error chips
+  const errChips = [
+    ps.crashloop     > 0 ? ebcHtml('var(--c-red-bg)',    'var(--c-red)',    'var(--c-red)',    'crashloop',     `↺ CrashLoop ×${ps.crashloop}`) : '',
+    ps.oomkilled     > 0 ? ebcHtml('var(--c-red-bg)',    'var(--c-red)',    'var(--c-red)',    'oomkilled',     `⚡ OOMKilled ×${ps.oomkilled}`) : '',
+    ps.imagepull     > 0 ? ebcHtml('var(--c-purple-bg)', 'var(--c-purple)', 'var(--c-purple)', 'imagepull',     `⬇ ImagePull ×${ps.imagepull}`) : '',
+    ps.configerror   > 0 ? ebcHtml('var(--c-orange-bg)', 'var(--c-orange)', 'var(--c-orange)', 'configerror',   `⚙ ConfigErr ×${ps.configerror}`) : '',
+    ps.unschedulable > 0 ? ebcHtml('var(--c-gray-bg)',   'var(--c-gray)',   'var(--c-gray)',   'unschedulable', `⊘ Unsched ×${ps.unschedulable}`) : '',
+    ps.failed        > 0 ? ebcHtml('var(--c-red-bg)',    'var(--c-red)',    'var(--c-red)',    'error',         `✗ Failed ×${ps.failed}`) : '',
+  ].filter(Boolean).join('');
+
+  // Deployment detail
+  const depDetail = ns.deployments.length > 0 ? `
+    <div class="wl-detail" id="dep-${ns.namespace}">
+      <div class="wl-detail-inner">
+        <div class="wl-detail-lbl">Deployments</div>
+        ${ns.deployments.map(d => `
+          <div class="wl-item">
+            <span class="wl-iname" title="${d.name}">${d.name}</span>
+            <span class="wl-iready ${d.health === 'ok' ? 'ok' : 'deg'}">${d.ready}/${d.desired} Ready</span>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
+  // StatefulSet detail
+  const stsDetail = ns.statefulsets.length > 0 ? `
+    <div class="wl-detail" id="sts-${ns.namespace}">
+      <div class="wl-detail-inner">
+        <div class="wl-detail-lbl">StatefulSets</div>
+        ${ns.statefulsets.map(s => `
+          <div class="wl-item">
+            <span class="wl-iname" title="${s.name}">${s.name}</span>
+            <span class="wl-iready ${s.health === 'ok' ? 'ok' : 'deg'}">${s.ready}/${s.desired} Ready</span>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
+  // Pod rows
+  const podRows = shown.map(p => `
+    <div class="pod-row">
+      <div class="pd ${p.statusClass}"></div>
+      <span class="pname" title="${p.name}">${p.name}</span>
+      <span class="pnode" title="${p.nodeName}">${shortNode(p.nodeName)}</span>
+      <span class="plbl ${p.statusClass}">${p.statusLabel}</span>
+      <span class="page">${p.age}</span>
+      <span class="prst ${p.restarts > 5 ? 'hi' : ''}">${p.restarts > 0 ? '↺' + p.restarts : ''}</span>
+    </div>`).join('');
+
+  const moreBtn = more > 0
+    ? `<button class="more-btn" onclick="expandPods(this,'${ns.namespace}')">+ ${more} more pods</button>` : '';
+
+  const noPods = filtPods.length === 0
+    ? `<div class="no-pods">No pods match current filters</div>` : '';
+
+  return `
+  <div class="ns-card h-${ns.health}">
+    <div class="card-hdr">
+      <div class="ns-name"><div class="ns-ico">⬡</div>${ns.namespace}</div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+        ${ns.appGroup !== NO_LABEL_VALUE ? (() => {
+          const ci = agColorMap[ns.appGroup] ?? 0;
+          const c  = AG_COLORS[ci];
+          return `<span class="grp-badge" style="background:${c.bg};border-color:${c.border};color:${c.color}">${ns.appGroup}</span>`;
+        })() : '<span class="grp-badge" style="background:var(--c-gray-bg);border-color:var(--c-gray);color:var(--c-gray)">no label</span>'}
+        <span class="hbdg ${ns.health}">${ns.health.toUpperCase()}</span>
+      </div>
+    </div>
+
+    <div class="wl-row">
+      <div class="wl-s" onclick="toggleWl('dep-${ns.namespace}',this)">
+        <div class="wl-v">${ns.deployments.length}</div>
+        <div class="wl-l">Deployments <span class="wl-caret">▾</span></div>
+      </div>
+      <div class="wl-s" onclick="toggleWl('sts-${ns.namespace}',this)">
+        <div class="wl-v">${ns.statefulsets.length}</div>
+        <div class="wl-l">StatefulSets <span class="wl-caret">▾</span></div>
+      </div>
+      <div class="wl-s">
+        <div class="wl-v">${ps.total}</div>
+        <div class="wl-l">Pods</div>
+      </div>
+    </div>
+
+    ${depDetail}${stsDetail}
+
+    <div class="bar-wrap">
+      <div class="bar-top">
+        <span>Pod Health</span>
+        <span>${ps.running}R · ${ps.pending}P · ${ps.notReady}NR · ${ps.error}Err · ${ps.total} total</span>
+      </div>
+      <div class="pod-bar">
+        <div class="pb pb-run"  style="width:${pct(ps.running)}%"></div>
+        <div class="pb pb-pend" style="width:${pct(ps.pending)}%"></div>
+        <div class="pb pb-nr"   style="width:${pct(ps.notReady)}%"></div>
+        <div class="pb pb-err"  style="width:${pct(ps.error)}%"></div>
+        <div class="pb pb-suc"  style="width:${pct(ps.succeeded)}%"></div>
+      </div>
+      <div class="legend">
+        ${ps.running   > 0 ? `<div class="lgi"><div class="lgd" style="background:var(--c-green)"></div>${ps.running} Running</div>` : ''}
+        ${ps.pending   > 0 ? `<div class="lgi"><div class="lgd" style="background:var(--c-yellow)"></div>${ps.pending} Pending</div>` : ''}
+        ${ps.notReady  > 0 ? `<div class="lgi"><div class="lgd" style="background:var(--c-orange)"></div>${ps.notReady} NotReady</div>` : ''}
+        ${ps.error     > 0 ? `<div class="lgi"><div class="lgd" style="background:var(--c-red)"></div>${ps.error} Error</div>` : ''}
+        ${ps.succeeded > 0 ? `<div class="lgi"><div class="lgd" style="background:var(--c-blue)"></div>${ps.succeeded} Succeeded</div>` : ''}
+      </div>
+    </div>
+
+    ${errChips ? `<div class="err-chips">${errChips}</div>` : ''}
+
+    ${ns.pods.length > 0 ? `
+    <div class="pod-sec">
+      <div class="pod-sec-hdr">
+        <span class="pod-sec-title">Pods</span>
+        <span class="pod-sec-count">${filtPods.length}${filtPods.length !== ns.pods.length ? ` of ${ns.pods.length} shown` : ' total'}</span>
+      </div>
+      <div class="pod-col-hdr">
+        <div class="pch no-sort"></div>
+        <div class="pch ${podSort.col==='name'?'sorted':''}"    onclick="setSortCol('name')">${sortArrow('name')} Name</div>
+        <div class="pch ${podSort.col==='node'?'sorted':''}"    onclick="setSortCol('node')">${sortArrow('node')} Node</div>
+        <div class="pch ${podSort.col==='status'?'sorted':''}"  onclick="setSortCol('status')">${sortArrow('status')} Status</div>
+        <div class="pch ${podSort.col==='age'?'sorted':''}"     onclick="setSortCol('age')">${sortArrow('age')} Age</div>
+        <div class="pch ${podSort.col==='restarts'?'sorted':''}" onclick="setSortCol('restarts')" title="Restarts">${sortArrow('restarts')} ↺</div>
+      </div>
+      <div class="pod-list" id="pl-${ns.namespace}">
+        ${noPods}${podRows}
+      </div>
+      ${moreBtn}
+    </div>` : ''}
+  </div>`;
+}
+
+/* ── Toggle workload detail ─────────────────────────── */
+function toggleWl(id, cell) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const open = el.classList.toggle('open');
+  const caret = cell.querySelector('.wl-caret');
+  if (caret) caret.textContent = open ? '▴' : '▾';
+}
+
+/* ── Quick-filter from error chips ──────────────────── */
+function quickFilter(status) {
+  activatePsChip(status);
+  const advRow = document.getElementById('advRow');
+  if (!advRow.classList.contains('open')) toggleAdv();
+}
+
+/* ── Expand all pods ────────────────────────────────── */
+function expandPods(btn, namespace) {
+  const ns = dashData?.namespaceTiles.find(t => t.namespace === namespace);
+  if (!ns) return;
+  const psClasses = F.ps === 'all' ? null : (PS_GROUPS[F.ps] || [F.ps]);
+  const all = sortedPods(ns.pods.filter(p => {
+    if (psClasses && !psClasses.includes(p.statusClass)) return false;
+    if (F.pod && !p.name.toLowerCase().includes(F.pod)) return false;
+    if (F.node !== 'all' && p.nodeName !== F.node) return false;
+    return true;
+  }));
+  document.getElementById(`pl-${namespace}`).innerHTML = all.map(p => `
+    <div class="pod-row">
+      <div class="pd ${p.statusClass}"></div>
+      <span class="pname" title="${p.name}">${p.name}</span>
+      <span class="pnode" title="${p.nodeName}">${shortNode(p.nodeName)}</span>
+      <span class="plbl ${p.statusClass}">${p.statusLabel}</span>
+      <span class="page">${p.age}</span>
+      <span class="prst ${p.restarts > 5 ? 'hi' : ''}">${p.restarts > 0 ? '↺' + p.restarts : ''}</span>
+    </div>`).join('');
+  btn.remove();
+}
+
+/* ── Helpers ────────────────────────────────────────── */
+function ebcHtml(bg, border, color, status, label) {
+  return `<span class="ebc" style="background:${bg};border-color:${border};color:${color}" onclick="quickFilter('${status}')">${label}</span>`;
+}
+function shortNode(n) {
+  if (!n || n === 'Unscheduled') return '—';
+  const p = n.split('.');
+  return p[0].length > 17 ? p[0].slice(0, 17) + '…' : p[0];
+}
+function set(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+function showLoad(v)  { document.getElementById('loverlay').classList.toggle('show', v); }
+function showErr(m)   { set('errMsg', m); document.getElementById('errBar').classList.add('show'); }
+function hideErr()    { document.getElementById('errBar').classList.remove('show'); }
+
+/* ── Boot ───────────────────────────────────────────── */
+fetchData();
+</script>
+</body>
+</html>

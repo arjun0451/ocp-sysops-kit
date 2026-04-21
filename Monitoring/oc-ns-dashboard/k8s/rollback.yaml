@@ -1,0 +1,115 @@
+# =============================================================================
+# ROLLBACK MANIFEST
+# ocp-ns-dashboard — Platform SRE Tooling
+#
+# Usage:
+#   # Roll back to previous revision (Kubernetes tracks last 10 by default)
+#   oc rollout undo deployment/ocp-ns-dashboard -n ocp-ns-dashboard
+#
+#   # Roll back to a specific revision number
+#   oc rollout undo deployment/ocp-ns-dashboard -n ocp-ns-dashboard --to-revision=<N>
+#
+#   # Check revision history before rolling back
+#   oc rollout history deployment/ocp-ns-dashboard -n ocp-ns-dashboard
+#
+# This manifest pins the deployment back to the last known-good image tag (v4).
+# Apply it directly if you need a declarative/GitOps-style rollback instead of
+# the imperative `oc rollout undo` command.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocp-ns-dashboard
+  namespace: ocp-ns-dashboard
+  labels:
+    app: ocp-ns-dashboard
+    app.kubernetes.io/name: ocp-ns-dashboard
+    app.kubernetes.io/component: dashboard
+    version: "v4"                          # ← pin to previous known-good tag
+  annotations:
+    kubernetes.io/change-cause: "Rollback to v4 — reverted from v5"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ocp-ns-dashboard
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: ocp-ns-dashboard
+        app.kubernetes.io/name: ocp-ns-dashboard
+        version: "v4"
+    spec:
+      serviceAccountName: ocp-ns-dashboard-sa
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: ocp-ns-dashboard
+          image: quay.io/arjun0451/backup/ocp-health-dashboard:v4   # ← previous tag
+          imagePullPolicy: Always
+
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          env:
+            - name: PORT
+              value: "3000"
+            - name: NODE_ENV
+              value: "production"
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop: ["ALL"]
+
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+      restartPolicy: Always
