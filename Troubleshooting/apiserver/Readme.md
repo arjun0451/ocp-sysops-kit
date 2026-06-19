@@ -33,7 +33,7 @@ oc get nodes -l node-role.kubernetes.io/master= -o name
 Edit the top of the script:
 
 ```bash
-OCP_URL="api.dsu.ocp.psa:6443"
+OCP_URL="api.<example.com>:6443"
 ```
 Set this to the API endpoint you want to test (`<host>:<port>`, no `https://`).
 
@@ -47,7 +47,7 @@ Thresholds are in milliseconds. A metric turns yellow (`WARN`) at or above its `
 
 ```
 OpenShift API Connectivity Check
-Endpoint: https://api.dsu.ocp.psa:6443
+Endpoint: https://api.example.com:6443
 ================================================================================
 
 Node: master-0
