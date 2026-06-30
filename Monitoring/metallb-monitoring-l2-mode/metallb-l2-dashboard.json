@@ -1,0 +1,370 @@
+{
+  "__inputs": [{"name":"DS_PROMETHEUS","label":"Prometheus","type":"datasource","pluginId":"prometheus","pluginName":"Prometheus"}],
+  "__requires": [
+    {"type":"grafana","id":"grafana","name":"Grafana","version":"10.0.0"},
+    {"type":"datasource","id":"prometheus","name":"Prometheus","version":"1.0.0"},
+    {"type":"panel","id":"stat","name":"Stat","version":""},
+    {"type":"panel","id":"bargauge","name":"Bar gauge","version":""},
+    {"type":"panel","id":"timeseries","name":"Time series","version":""},
+    {"type":"panel","id":"table","name":"Table","version":""}
+  ],
+  "annotations":{"list":[{"builtIn":1,"datasource":{"type":"grafana","uid":"-- Grafana --"},"enable":true,"hide":true,"iconColor":"rgba(0,211,255,1)","name":"Annotations & Alerts","type":"dashboard"}]},
+  "description":"MetalLB L2 Mode — controller pool metrics + speaker ARP/NDP health, VIP-to-node ownership, failover severity ranking. Scaled for large (15+ node) clusters.",
+  "editable":true,"fiscalYearStartMonth":0,"graphTooltip":1,"id":null,"links":[],
+  "panels":[
+
+    {
+      "collapsed":false,
+      "gridPos":{"h":1,"w":24,"x":0,"y":0},
+      "id":100,
+      "title":"🔵  Cluster Status — Config, Pool & Speaker Health",
+      "type":"row"
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Aggregate count of speakers with config loaded. Must equal total speaker count (= node count in L2 mode). If a broken YAML config is applied, this drops below total — speakers stop updating routing tables.",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"thresholds"},
+          "thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"green","value":1}]},
+          "unit":"short"
+        },"overrides":[]
+      },
+      "gridPos":{"h":4,"w":6,"x":0,"y":1},
+      "id":1,
+      "options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"value_and_name"},
+      "title":"Speakers Config Loaded (sum)",
+      "type":"stat",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"sum(metallb_k8s_client_config_loaded_bool)","legendFormat":"loaded","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Aggregate count of speakers running stale config. Must be 0. Any value >0 means at least one speaker failed to reload the latest L2Advertisement/IPAddressPool — investigate that node immediately.",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"thresholds"},
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":1}]},
+          "unit":"short"
+        },"overrides":[]
+      },
+      "gridPos":{"h":4,"w":6,"x":6,"y":1},
+      "id":2,
+      "options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"value_and_name"},
+      "title":"Speakers Config Stale (sum)",
+      "type":"stat",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"sum(metallb_k8s_client_config_stale_bool)","legendFormat":"stale","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Total IPs in use vs total available. From metallb-controller (allocator metrics).",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"thresholds"},
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},
+          "unit":"short"
+        },"overrides":[]
+      },
+      "gridPos":{"h":4,"w":3,"x":12,"y":1},
+      "id":3,
+      "options":{"colorMode":"value","graphMode":"area","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},
+      "title":"IPs In Use",
+      "type":"stat",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"sum(metallb_allocator_addresses_in_use_total)","legendFormat":"in use","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Total usable IPs across all pools (controller allocator).",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"thresholds"},
+          "thresholds":{"mode":"absolute","steps":[{"color":"blue","value":null}]},
+          "unit":"short"
+        },"overrides":[]
+      },
+      "gridPos":{"h":4,"w":3,"x":15,"y":1},
+      "id":4,
+      "options":{"colorMode":"value","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Total Pool IPs",
+      "type":"stat",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"sum(metallb_allocator_addresses_total)","legendFormat":"total","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Overall pool utilisation %. Red >90%, Yellow >70%.",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"thresholds"},
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":70},{"color":"red","value":90}]},
+          "unit":"percent","min":0,"max":100
+        },"overrides":[]
+      },
+      "gridPos":{"h":4,"w":3,"x":18,"y":1},
+      "id":5,
+      "options":{"colorMode":"background","graphMode":"area","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Pool Utilisation %",
+      "type":"stat",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"100 * sum(metallb_allocator_addresses_in_use_total) / sum(metallb_allocator_addresses_total)","legendFormat":"util%","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Free IPs = total - in_use. Near zero = pool exhaustion risk.",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"thresholds"},
+          "thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":3},{"color":"green","value":10}]},
+          "unit":"short"
+        },"overrides":[]
+      },
+      "gridPos":{"h":4,"w":3,"x":21,"y":1},
+      "id":6,
+      "options":{"colorMode":"background","graphMode":"none","justifyMode":"center","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},
+      "title":"Free IPs Remaining",
+      "type":"stat",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"sum(metallb_allocator_addresses_total) - sum(metallb_allocator_addresses_in_use_total)","legendFormat":"free","refId":"A"}]
+    },
+
+    {
+      "collapsed":false,
+      "gridPos":{"h":1,"w":24,"x":0,"y":5},
+      "id":106,
+      "title":"🟣  Node Leadership Balance — L2 VIP Distribution",
+      "type":"row"
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Count of VIPs/services actively owned (announced) per node. In a healthy, balanced L2 cluster these bars should be roughly even. A single node with a disproportionately long bar is hogging L2 leadership — a scaling and blast-radius risk, since that node's failure would trigger a mass failover.",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"thresholds"},
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},
+          "unit":"short","min":0
+        },"overrides":[]
+      },
+      "gridPos":{"h":8,"w":24,"x":0,"y":6},
+      "id":60,
+      "options":{"displayMode":"gradient","minVizHeight":10,"minVizWidth":0,"namePlacement":"auto","orientation":"horizontal","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"showUnfilled":true,"valueMode":"color"},
+      "title":"Active Services Per Node — L2 Leadership Distribution",
+      "type":"bargauge",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"sort_desc(sum by (node) (metallb_speaker_announced))","legendFormat":"{{node}}","refId":"A","instant":true}]
+    },
+
+    {
+      "collapsed":false,
+      "gridPos":{"h":1,"w":24,"x":0,"y":14},
+      "id":107,
+      "title":"📋  Live Node-to-Service Mapping",
+      "type":"row"
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Live mapping of which Node and Speaker Pod currently announces which VIP, for which Service. Trimmed to operationally relevant labels only (container/endpoint/job/namespace/prometheus instance-scrape labels dropped). This answers: 'which VIP is this node serving and for which service'.",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"thresholds"},
+          "custom":{"align":"left","cellOptions":{"type":"auto"},"inspect":false},
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},
+          "unit":"short"
+        },"overrides":[]
+      },
+      "gridPos":{"h":9,"w":24,"x":0,"y":15},
+      "id":61,
+      "options":{"cellHeight":"sm","footer":{"countRows":false,"fields":"","reducer":["sum"],"show":false},"showHeader":true,"sortBy":[{"desc":false,"displayName":"Node"}]},
+      "title":"Node → Speaker Pod → VIP → Service (live)",
+      "type":"table",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"metallb_speaker_announced{protocol=\"layer2\"}","refId":"A","instant":true,"format":"table"}],
+      "transformations":[
+        {
+          "id":"organize",
+          "options":{
+            "excludeByName":{"Time":true,"__name__":true,"container":true,"endpoint":true,"job":true,"namespace":true,"prometheus":true,"instance":true,"Value":false},
+            "renameByName":{
+              "ip":"VIP",
+              "node":"Node",
+              "pod":"Speaker Pod",
+              "protocol":"Protocol",
+              "service":"Service",
+              "Value":"Announced"
+            },
+            "indexByName":{"Node":0,"Speaker Pod":1,"VIP":2,"Service":3,"Protocol":4,"Announced":5}
+          }
+        }
+      ]
+    },
+
+    {
+      "collapsed":false,
+      "gridPos":{"h":1,"w":24,"x":0,"y":24},
+      "id":102,
+      "title":"📡  L2 ARP/NDP — Requests, Responses & Drop Detection (per VIP)",
+      "type":"row"
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Tracks per-second rate of incoming Layer 2 discovery broadcasts (ARP requests for IPv4 / NDP requests for IPv6) targeting MetalLB-managed LoadBalancer IPs.\n\nWhat it means:\n• Spikes: new client machines joining the network, expired router ARP caches, or potential network loops/storms.\n• Baseline: healthy, quiet networks show very low fractional decimal values (m req/s = milli-requests/sec), meaning external clients have already cached the node's MAC address and rarely re-query.\n\nHealthy target: sustained baseline under ~100 m req/s (0.1 req/s) per VIP. Sustained values above 1 req/s per VIP warrant investigation for ARP storms or flapping upstream switches.\n\nMetric: metallb_layer2_requests_received",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"palette-classic"},
+          "custom":{"axisLabel":"req/s","drawStyle":"line","fillOpacity":15,"gradientMode":"opacity","lineInterpolation":"smooth","lineWidth":2,"showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"off"}},
+          "unit":"reqps",
+          "decimals":1
+        },"overrides":[]
+      },
+      "gridPos":{"h":7,"w":8,"x":0,"y":25},
+      "id":20,
+      "options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom","showLegend":true},"tooltip":{"mode":"multi","sort":"desc"}},
+      "title":"ARP/NDP Requests Received (per VIP)",
+      "type":"timeseries",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"rate(metallb_layer2_requests_received[$__rate_interval])","legendFormat":"{{ip}}","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Tracks per-second rate of outgoing Layer 2 answers (ARP replies for IPv4 / NDP neighbor advertisements for IPv6) sent by MetalLB.\n\nWhat it means:\n• Healthy state: this metric should exactly match Requests Received. A 1-to-1 ratio proves the cluster is acknowledging all network queries.\n• Drops/discrepancies: if this value drops below the request rate, the speaker pod is failing to answer network queries — this WILL break external ingress traffic for that VIP.\n\nMetric: metallb_layer2_responses_sent",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"palette-classic"},
+          "custom":{"axisLabel":"resp/s","drawStyle":"line","fillOpacity":15,"gradientMode":"opacity","lineInterpolation":"smooth","lineWidth":2,"showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"off"}},
+          "unit":"reqps",
+          "decimals":1
+        },"overrides":[]
+      },
+      "gridPos":{"h":7,"w":8,"x":8,"y":25},
+      "id":21,
+      "options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom","showLegend":true},"tooltip":{"mode":"multi","sort":"desc"}},
+      "title":"ARP/NDP Responses Sent (per VIP)",
+      "type":"timeseries",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"rate(metallb_layer2_responses_sent[$__rate_interval])","legendFormat":"{{ip}}","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Cluster-wide delta: total requests received minus total responses sent, per second. In a perfectly healthy network this line sits flat at zero.\n\nIf this value rises above 0 for a sustained period, MetalLB is ignoring network clients — external ingress is being silently dropped for at least one VIP.\n\nSuggested alert: trigger if value > 0 for more than 2 minutes.\n\nFormula: sum(rate(metallb_layer2_requests_received[$__rate_interval])) - sum(rate(metallb_layer2_responses_sent[$__rate_interval]))",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"fixed","fixedColor":"red"},
+          "custom":{"axisCenteredZero":true,"axisLabel":"dropped req/s","drawStyle":"line","fillOpacity":25,"gradientMode":"opacity","lineInterpolation":"smooth","lineWidth":2,"showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"line+area","steps":[{"color":"transparent","value":null},{"color":"red","value":0.001}]}},
+          "unit":"reqps",
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":0.001}]}
+        },"overrides":[]
+      },
+      "gridPos":{"h":7,"w":8,"x":16,"y":25},
+      "id":25,
+      "options":{"legend":{"calcs":["mean","max"],"displayMode":"list","placement":"bottom","showLegend":true},"tooltip":{"mode":"single","sort":"none"}},
+      "title":"MetalLB L2 Dropped/Ignored Requests (cluster-wide) — Must stay at 0",
+      "type":"timeseries",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"sum(rate(metallb_layer2_requests_received[$__rate_interval])) - sum(rate(metallb_layer2_responses_sent[$__rate_interval]))","legendFormat":"dropped","refId":"A"}]
+    },
+
+    {
+      "collapsed":false,
+      "gridPos":{"h":1,"w":24,"x":0,"y":32},
+      "id":108,
+      "title":"🟡  Gratuitous ARP/NDP — Failover & Stability Signals",
+      "type":"row"
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Tracks per-second rate of unsolicited Layer 2 network updates (Gratuitous ARP for IPv4 / unsolicited NDP advertisement for IPv6) sent by MetalLB, per VIP.\n\nWhat it means:\n• Baseline (m pps): small fractional values = standard background tick keeping physical switch MAC tables fresh.\n• Spikes: heavy spikes = failover or cluster update, where a service migrates to a new leader node and forces the network to redirect traffic.\n\nReal-world scenarios:\n• Normal ops: steady ~12 mp/s — cluster stable, just reminder packets.\n• Active failover: sharp spike to 500+ mp/s then drops back to baseline — node crashed/maintained, new leader elected, switch flooded once to redirect traffic without dropping connections.\n• Flapping (critical): continuous erratic mountain-shaped spikes that never return to baseline — split-brain, two+ nodes fighting over the same VIP. Severe internal cluster networking issue.\n\nMetric: metallb_layer2_gratuitous_sent",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"palette-classic"},
+          "custom":{"axisLabel":"pkt/s","drawStyle":"line","fillOpacity":20,"gradientMode":"opacity","lineInterpolation":"smooth","lineWidth":2,"showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"line+area","steps":[{"color":"transparent","value":null},{"color":"orange","value":1}]}},
+          "unit":"pps",
+          "decimals":2,
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"orange","value":0.5},{"color":"red","value":2}]}
+        },"overrides":[]
+      },
+      "gridPos":{"h":8,"w":12,"x":0,"y":33},
+      "id":22,
+      "options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom","showLegend":true},"tooltip":{"mode":"multi","sort":"desc"}},
+      "title":"Gratuitous ARP/NDP Rate (per VIP)",
+      "type":"timeseries",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"rate(metallb_layer2_gratuitous_sent[$__rate_interval])","legendFormat":"{{ip}}","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Tracks per-second rate of gratuitous ARP/NDP sent by MetalLB, mapped directly to the hosting physical OpenShift Node (joins metallb_layer2_gratuitous_sent with kube_pod_info on pod label).\n\nWhat it emphasizes:\n• Node leadership: which physical server is actively managing traffic redirection / routing table freshness for your LoadBalancer IPs.\n• Failover dynamics: visualizes traffic migration between host machines during node reboots or cluster upgrades.\n\nTroubleshooting scenarios:\n• Stable: lines hover flat 0.01–0.1 pps — healthy, just keeping switch MAC tables fresh.\n• Standard pod update / micro-failover: one node briefly spikes to ~1 pps then drops back — app pod relocated, MetalLB updated switch seamlessly.\n• Complete node outage: one node's line drops to 0 pps while another simultaneously spikes 10+ pps — failed node, successful failover to survivor, which blasted the network to pull traffic.\n• Split-brain/flapping (critical): multiple node lines jumping up/down simultaneously in a chaotic zig-zag — two nodes competing for the same VIP, severe packet drops for external users.\n\nRequires kube-state-metrics (kube_pod_info) scraped in the same Prometheus.\n\nMetric: metallb_layer2_gratuitous_sent joined with kube_pod_info{namespace=\"metallb-system\"}",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"palette-classic"},
+          "custom":{"axisLabel":"pkt/s","drawStyle":"line","fillOpacity":20,"gradientMode":"opacity","lineInterpolation":"smooth","lineWidth":2,"showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"off"}},
+          "unit":"pps",
+          "decimals":2
+        },"overrides":[]
+      },
+      "gridPos":{"h":8,"w":12,"x":12,"y":33},
+      "id":26,
+      "options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom","showLegend":true},"tooltip":{"mode":"multi","sort":"desc"}},
+      "title":"Gratuitous ARP/NDP Rate (per Node) — Leadership & Failover Mapping",
+      "type":"timeseries",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"sum by (node) (rate(metallb_layer2_gratuitous_sent[$__rate_interval]) * on(pod) group_left(node) kube_pod_info{namespace=\"metallb-system\"})","legendFormat":"{{node}}","refId":"A"}]
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"FIXED v2: gated to avoid divide-by-near-zero blowup. Old formula (100 * grat_rate / (req_rate + 0.001)) produced fake values like 133,000% whenever request_rate was near-zero — pure math artifact, not real instability, because most L2 VIPs naturally get near-zero ARP traffic once clients cache the MAC.\n\nThis version only computes the ratio when request_rate is non-trivial (> 0.01 req/s, i.e. real client traffic present). When traffic is below that floor, the panel returns no data instead of a misleading huge percentage — gaps in the line are expected and mean 'too quiet to judge', not an error.\n\nHow to read it now:\n• No line / gap: VIP is quiet, normal for L2 — ratio is not meaningful here, ignore.\n• Line present, <50%: healthy — gratuitous sends are a small fraction of real traffic.\n• Line present, >50% sustained: real instability — leader is re-announcing far more than client demand justifies. Investigate pod crash-looping or split-brain on that VIP.\n\nFor raw instability regardless of traffic level, trust the 'Total Gratuitous Sends Ranked' panel below instead — that one is not affected by this math issue.\n\nFormula: (req_rate > 0.01) ? 100 * grat_rate / req_rate : no data",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"palette-classic"},
+          "custom":{"axisLabel":"grat/req %","drawStyle":"line","fillOpacity":20,"gradientMode":"opacity","lineInterpolation":"smooth","lineWidth":2,"showPoints":"never","spanNulls":false,"stacking":{"group":"A","mode":"none"},"thresholdsStyle":{"mode":"line+area","steps":[{"color":"transparent","value":null},{"color":"red","value":50}]}},
+          "unit":"percent"
+        },"overrides":[]
+      },
+      "gridPos":{"h":7,"w":24,"x":0,"y":41},
+      "id":24,
+      "options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom","showLegend":true},"tooltip":{"mode":"multi","sort":"desc"}},
+      "title":"Gratuitous / Requests Ratio % (traffic-gated) — gaps = too quiet to judge, line >50% = real instability",
+      "type":"timeseries",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"(100 * rate(metallb_layer2_gratuitous_sent[$__rate_interval]) / rate(metallb_layer2_requests_received[$__rate_interval])) and (rate(metallb_layer2_requests_received[$__rate_interval]) > 0.01)","legendFormat":"{{ip}}","refId":"A"}]
+    },
+
+    {
+      "collapsed":false,
+      "gridPos":{"h":1,"w":24,"x":0,"y":48},
+      "id":103,
+      "title":"🔴  Failover Severity — Cumulative Gratuitous Sends Ranked",
+      "type":"row"
+    },
+
+    {
+      "datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},
+      "description":"Descending rank of raw, cumulative gratuitous packets sent by each MetalLB speaker/VIP. Immediately exposes which VIP or host node is generating the highest volume of unsolicited network table updates.\n\nHow to interpret values over 25,000 (25k):\n• Healthy (slow accumulation): if 25k took weeks of continuous uptime to reach, it's normal background maintenance behavior.\n• Critical (rapid vertical spike): if the counter reaches 25k within minutes or hours, a critical network failure is occurring.\n\nCommon causes of rapid 25k+ spikes:\n1. Micro-failover storms — an app pod crash-looping, forcing MetalLB to migrate the VIP back and forth endlessly.\n2. Split-brain routing — a physical network partition causing multiple nodes to believe they're the active leader simultaneously, fighting for control of the IP.\n\nFormula: sort_desc(metallb_layer2_gratuitous_sent)",
+      "fieldConfig":{
+        "defaults":{
+          "color":{"mode":"thresholds"},
+          "thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":5000},{"color":"red","value":25000}]},
+          "unit":"short","min":0
+        },"overrides":[]
+      },
+      "gridPos":{"h":9,"w":24,"x":0,"y":49},
+      "id":30,
+      "options":{"displayMode":"gradient","minVizHeight":10,"minVizWidth":0,"namePlacement":"auto","orientation":"horizontal","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"showUnfilled":true,"valueMode":"color"},
+      "title":"Total Gratuitous Sends Ranked (per VIP) — bar length = failover severity",
+      "type":"bargauge",
+      "targets":[{"datasource":{"type":"prometheus","uid":"${DS_PROMETHEUS}"},"expr":"sort_desc(metallb_layer2_gratuitous_sent)","legendFormat":"{{ip}}","refId":"A","instant":true}]
+    }
+
+  ],
+  "refresh":"30s",
+  "schemaVersion":38,
+  "tags":["metallb","l2","openshift","networking","arp"],
+  "templating":{"list":[{"current":{},"hide":0,"includeAll":false,"label":"Datasource","multi":false,"name":"DS_PROMETHEUS","options":[],"query":"prometheus","refresh":1,"regex":"","type":"datasource"}]},
+  "time":{"from":"now-3h","to":"now"},
+  "timepicker":{},
+  "timezone":"browser",
+  "title":"MetalLB — L2 Mode",
+  "uid":"metallb-l2-v4",
+  "version":5,
+  "weekStart":""
+}
