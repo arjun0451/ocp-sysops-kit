@@ -1,100 +1,118 @@
-# ACM PolicyGenerator SOP
 
-## 1. Purpose
+````markdown
+# ACM PolicyGenerator Setup and Execution
 
-This SOP describes how to use the **RHACM PolicyGenerator CLI** to generate ACM governance policies from Kubernetes manifests.
+## 1. First-Time ACM Hub Setup
 
-The approach separates:
+The following steps are required when setting up the ACM PolicyGenerator workflow for the first time.
 
-* **PolicyGenerator template** — defines how policies are generated.
-* **Manifest** — defines the Kubernetes object to be enforced.
-* **Generated policy** — output consumed by ACM.
-* **Placement** — existing ACM Placement used to determine target clusters.
+The purpose of this setup is to:
+
+- Access the RHACM console.
+- Identify the ACM Hub cluster.
+- Bind the policy namespace to the appropriate ManagedClusterSet.
+- Use an existing ACM Placement for policy targeting.
+- Allow generated policies to be distributed to the required managed clusters.
 
 ---
 
-## 2. Recommended Directory Structure
+## 1.1 Log in to the RHOCP Hub Cluster
 
-Use one directory per policy scenario.
+1. Open a web browser and access the OpenShift Container Platform console:
+
+   `https://console-openshift-console.apps.ocp4.example.com`
+
+2. Select the **Red Hat Identity Management** identity provider.
+
+3. Log in using the authorized administrative account.
+
+   > Do not store passwords or other credentials in this SOP or Git repository.
+
+4. After login, verify that you are connected to the **RHOCP Hub cluster**.
+
+5. At the top of the OpenShift console, set the cluster switcher to:
+
+   **All Clusters**
+
+6. The RHACM console should now be available.
+
+---
+
+## 1.2 Bind the Policy Namespace to the ManagedClusterSet
+
+The namespace containing ACM policies must be associated with the appropriate ManagedClusterSet.
+
+For this example:
 
 ```text
-acm-policies/
-├── policygen/
-│   ├── template.yaml
-│   ├── node-alerts.yaml
-│   ├── storage-alerts.yaml
-│   └── security-alerts.yaml
-│
-├── manifests/
-│   ├── node-alerts/
-│   │   ├── node-cpu.yaml
-│   │   ├── node-memory.yaml
-│   │   └── node-filesystem.yaml
-│   │
-│   ├── storage-alerts/
-│   │   └── pvc-usage.yaml
-│   │
-│   └── security/
-│       └── ...
-│
-├── generated/
-│   ├── node-alerts-policy.yaml
-│   ├── storage-alerts-policy.yaml
-│   └── security-policy.yaml
-│
-└── README.md
-```
+Policy Namespace : policies-developer
+ManagedClusterSet : default
+````
 
-A simpler structure can also be used for a small repository:
+### Using the RHACM Console
+
+1. In the RHACM console, go to:
+
+   **Infrastructure → Clusters**
+
+2. Select:
+
+   **Cluster sets**
+
+3. Select the required ManagedClusterSet:
+
+   ```text
+   default
+   ```
+
+4. Click the **pencil / Edit** icon to edit the namespace bindings.
+
+5. In the **Namespaces** drop-down list, select:
+
+   ```text
+   policies-developer
+   ```
+
+6. Click **Save**.
+
+The relationship should now be:
 
 ```text
-acm-policies/
-├── policygen/
-│   └── template.yaml
-├── manifests/
-│   ├── node-cpu.yaml
-│   ├── node-memory.yaml
-│   ├── node-filesystem.yaml
-│   └── pvc-usage.yaml
-└── generated/
-    └── custom-alert-policies.yaml
+ManagedClusterSet
+       │
+       ▼
+    default
+       │
+       │ Namespace Binding
+       ▼
+policies-developer
 ```
+
+> For production environments, use the organization's approved ManagedClusterSet instead of `default`.
 
 ---
 
-# 3. Prerequisites
+## 1.3 Verify the Namespace Binding
 
-The following are required:
-
-* RHACM Hub cluster access
-* `oc` CLI
-* PolicyGenerator CLI
-* Access to the ACM namespace, for example:
+The namespace binding can be verified from the Hub cluster.
 
 ```bash
-oc project ocp-policies
+oc get managedclusterset
 ```
 
-Verify the PolicyGenerator:
+Check the namespace:
 
 ```bash
-./PolicyGenerator --help
+oc get namespace policies-developer
 ```
 
-Verify cluster access:
-
-```bash
-oc whoami
-oc get managedclusters
-```
+The namespace should exist before policies are generated and applied.
 
 ---
 
-# 4. ACM Placement
+# 2. ACM Policy Targeting
 
-Policies need to be associated with clusters through an ACM `Placement`.
-
-For production, it is preferable to **reuse an existing Placement** rather than generating a new Placement for every policy.
+After the namespace is associated with the ManagedClusterSet, identify the Placement that will determine which managed clusters receive the policy.
 
 Example existing Placement:
 
@@ -102,146 +120,215 @@ Example existing Placement:
 policy-namespace-placement
 ```
 
-Check it:
+Verify the Placement:
 
 ```bash
 oc get placement -A
 ```
 
-Example:
+For example:
 
 ```bash
-oc get placement policy-namespace-placement -n ocp-policies -o yaml
+oc get placement policy-namespace-placement \
+  -n policies-developer
 ```
 
-The Placement should already select the intended managed clusters or ManagedClusterSet.
+The policy workflow is:
+
+```text
+Policy
+   │
+   ▼
+PlacementBinding
+   │
+   ▼
+Existing Placement
+   │
+   ▼
+ManagedClusterSet
+   │
+   ▼
+Managed Clusters
+```
+
+The PolicyGenerator can reference the existing Placement instead of generating a new Placement.
+
+Example:
+
+```yaml
+policyDefaults:
+  placement:
+    placementName: policy-namespace-placement
+```
 
 ---
 
-# 5. PolicyGenerator Template
+# 3. PolicyGenerator Git Repository
 
-Create:
+After the initial ACM setup, maintain the Kubernetes manifests and PolicyGenerator configuration in Git.
+
+Recommended structure:
 
 ```text
-policygen/template.yaml
+acm-policies/
+│
+├── manifests/
+│   ├── monitoring/
+│   │   ├── node-cpu.yaml
+│   │   ├── node-memory.yaml
+│   │   ├── node-filesystem.yaml
+│   │   └── pvc-usage.yaml
+│   │
+│   ├── security/
+│   │   └── ...
+│   │
+│   └── storage/
+│       └── ...
+│
+├── policygen/
+│   └── template.yaml
+│
+└── generated/
+    └── monitoring-policy.yaml
 ```
 
-Example production-oriented template:
+---
+
+# 4. PolicyGenerator Flow
+
+The overall workflow is:
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Git Repository                              │
+│                                                                     │
+│  manifests/                         policygen/                      │
+│  ├── node-cpu.yaml                  └── template.yaml               │
+│  ├── node-memory.yaml                                               │
+│  ├── node-filesystem.yaml                                           │
+│  └── pvc-usage.yaml                                                 │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+                               │ Source
+                               ▼
+                    ┌──────────────────────┐
+                    │ PolicyGenerator CLI  │
+                    └──────────┬───────────┘
+                               │
+                               │ Generate
+                               ▼
+                    ┌──────────────────────┐
+                    │ Generated ACM Policy │
+                    │                      │
+                    │ Policy               │
+                    │ ConfigurationPolicy  │
+                    │ PlacementBinding     │
+                    └──────────┬───────────┘
+                               │
+                               │ oc apply
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         ACM HUB CLUSTER                             │
+│                                                                     │
+│                    ACM Governance                                  │
+│                         │                                           │
+│              ┌──────────┴──────────┐                                │
+│              │                     │                                │
+│              ▼                     ▼                                │
+│     ConfigurationPolicy     PlacementBinding                        │
+│                                    │                                │
+│                                    ▼                                │
+│                        Existing Placement                            │
+│                                    │                                │
+│                                    ▼                                │
+│                         ManagedClusterSet                            │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+                             │ Policy distribution
+                             ▼
+              ┌──────────────────────────────┐
+              │       Managed Clusters       │
+              │                              │
+              │  Cluster 1                   │
+              │  Cluster 2                   │
+              │  Cluster 3                   │
+              │  ...                         │
+              └──────────────┬───────────────┘
+                             │
+                             │ ConfigurationPolicy
+                             ▼
+                  ┌───────────────────────┐
+                  │   AlertingRule        │
+                  │                       │
+                  │ openshift-monitoring  │
+                  └───────────┬───────────┘
+                              │
+                              ▼
+                    OpenShift Monitoring
+                              │
+                 ┌────────────┴────────────┐
+                 ▼                         ▼
+             Prometheus              Alertmanager
+                 │                         │
+                 └────────────┬────────────┘
+                              ▼
+                         Alert / Notification
+```
+
+---
+
+# 5. PolicyGenerator Configuration
+
+Example:
 
 ```yaml
 apiVersion: policy.open-cluster-management.io/v1
 kind: PolicyGenerator
 
 metadata:
-  name: custom-alert-policies
+  name: custom-monitoring-policies
 
 policyDefaults:
-  namespace: ocp-policies
+  namespace: policies-developer
 
   severity: low
   remediationAction: inform
   complianceType: musthave
   disabled: false
 
-  # Prevent ACM ConfigurationPolicy from interpreting
-  # Prometheus template variables such as {{ $labels.* }}
   configurationPolicyAnnotations:
     policy.open-cluster-management.io/disable-templates: "true"
-
-  # Reuse an existing ACM Placement
+#if we have existing placement we can use the placment section ,else create empty policy and map the placment from GUI
   placement:
     placementName: policy-namespace-placement
 
 policies:
   - name: custom-alertingrules
-    description: Custom monitoring alerting rules
+    description: Custom OpenShift monitoring alerting rules
+
     manifests:
-      - path: ../manifests/
+      - path: ../manifests/monitoring/
 ```
-
-> **Important:** `disable-templates: "true"` is particularly important when the Kubernetes manifest contains Prometheus expressions such as `{{ $labels.instance }}` or `{{ $value }}`. Without it, ACM ConfigurationPolicy templating can interpret these variables and produce errors such as `undefined variable "$labels"`.
 
 ---
 
-# 6. Kubernetes Manifest
+# 6. Add Kubernetes Manifests
 
-The Kubernetes object being managed should remain a normal Kubernetes manifest.
+Place the Kubernetes resources that should be managed by ACM under the appropriate manifest directory.
 
-For example:
-
-```text
-manifests/node-filesystem.yaml
-```
-
-```yaml
-apiVersion: monitoring.openshift.io/v1
-kind: AlertingRule
-metadata:
-  name: psa-node-filesystem-high-usage
-  namespace: openshift-monitoring
-spec:
-  groups:
-    - name: psa-node-filesystem-usage
-      rules:
-        - alert: NodeFilesystemHighUsage
-          annotations:
-            description: |
-              Filesystem on device {{ $labels.device }},
-              mounted at {{ $labels.mountpoint }} on node {{ $labels.instance }},
-              has less than 20% free space remaining.
-
-              Current available space: {{ printf "%.2f" $value }}%.
-
-            summary: Node filesystem usage above 80%
-
-          expr: |
-            (
-              node_filesystem_avail_bytes{
-                fstype!="",
-                job="node-exporter",
-                mountpoint!~"/var/lib/ibmc-s3fs.*"
-              }
-              /
-              node_filesystem_size_bytes{
-                fstype!="",
-                job="node-exporter",
-                mountpoint!~"/var/lib/ibmc-s3fs.*"
-              }
-              * 100 < 90
-            )
-            and
-            node_filesystem_readonly{
-              fstype!="",
-              job="node-exporter",
-              mountpoint!~"/var/lib/ibmc-s3fs.*"
-            } == 0
-
-          for: 1m
-
-          labels:
-            platform: infrastructure
-            severity: critical
-```
-
-The manifest remains independent from ACM.
-
----
-
-# 7. Multiple Manifests
-
-Multiple Kubernetes objects can be placed in the manifest directory:
+Example:
 
 ```text
-manifests/
+manifests/monitoring/
 ├── node-cpu.yaml
 ├── node-memory.yaml
 ├── node-filesystem.yaml
 └── pvc-usage.yaml
 ```
 
-For example:
+These are normal Kubernetes/OpenShift manifests.
 
-### `node-cpu.yaml`
+For example:
 
 ```yaml
 apiVersion: monitoring.openshift.io/v1
@@ -256,8 +343,9 @@ spec:
         - alert: HighNodeCpuUsageAlert
           expr: |
             100 - (
-              avg by (instance)
-              (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100
+              avg by (instance) (
+                rate(node_cpu_seconds_total{mode="idle"}[5m])
+              ) * 100
             ) > 85
           for: 5m
           labels:
@@ -265,131 +353,38 @@ spec:
           annotations:
             summary: High CPU usage on node
             description: |
-              {{ $labels.instance }} is higher than 85% CPU usage.
-              Current usage: {{ $value }}%
-```
-
-### `node-memory.yaml`
-
-```yaml
-apiVersion: monitoring.openshift.io/v1
-kind: AlertingRule
-metadata:
-  name: psa-high-node-memory-usage-alert
-  namespace: openshift-monitoring
-spec:
-  groups:
-    - name: psa-high-node-memory-usage-alert
-      rules:
-        - alert: HighNodeMemoryUsageAlert
-          expr: |
-            (
-              1 -
-              (
-                sum by (instance) (
-                  node_memory_MemFree_bytes
-                  + node_memory_Buffers_bytes
-                  + node_memory_Cached_bytes
-                )
-                /
-                sum by (instance) (
-                  node_memory_MemTotal_bytes
-                )
-              )
-            ) * 100 > 85
-          for: 5m
-          labels:
-            severity: critical
-          annotations:
-            summary: High memory usage on node
-            description: |
-              Node {{ $labels.instance }} has sustained high memory usage.
-              Current usage: {{ $value }}%
-```
-
-### `pvc-usage.yaml`
-
-```yaml
-apiVersion: monitoring.openshift.io/v1
-kind: AlertingRule
-metadata:
-  name: custom-pvc-usage-high
-  namespace: openshift-monitoring
-spec:
-  groups:
-    - name: custom-pvc-usage-alerts
-      rules:
-        - alert: HighPVCUsage
-          expr: |
-            (
-              kubelet_volume_stats_used_bytes
-              /
-              kubelet_volume_stats_capacity_bytes
-            ) * 100 > 80
-          for: 60m
-          labels:
-            severity: critical
-          annotations:
-            summary: PVC usage above 80%
-            description: |
-              PVC {{ $labels.persistentvolumeclaim }}
-              in namespace {{ $labels.namespace }}
-              is using more than 80% of its capacity.
-              Current usage: {{ $value }}%
+              Node {{ $labels.instance }} has high CPU usage.
+              Current usage: {{ $value }}%.
 ```
 
 ---
 
-# 8. Generate the ACM Policy
+# 7. Generate the ACM Policy
 
-From the repository root:
-
-```bash
-./PolicyGenerator policygen/template.yaml
-```
-
-If the generator supports output redirection:
+Run the PolicyGenerator CLI from the repository root.
 
 ```bash
-./PolicyGenerator policygen/template.yaml > generated/custom-alertingrules-policy.yaml
+./PolicyGenerator policygen/template.yaml \
+  > generated/monitoring-policy.yaml
 ```
 
-The generated output should contain:
+The generated file contains the ACM Policy resources required for deployment.
+
+For example:
+
+```text
+generated/monitoring-policy.yaml
+```
+
+contains:
 
 ```text
 Policy
+ConfigurationPolicy
 PlacementBinding
 ```
 
-Because the template uses:
-
-```yaml
-placement:
-  placementName: policy-namespace-placement
-```
-
-the generator references the existing Placement rather than creating a new Placement.
-
----
-
-# 9. Validate the Generated YAML
-
-Before applying it to the Hub, validate the YAML:
-
-```bash
-oc apply --dry-run=server \
-  -f generated/custom-alertingrules-policy.yaml
-```
-
-If the generated file contains multiple YAML documents, `oc` processes them all.
-
-You can also inspect:
-
-```bash
-cat generated/custom-alertingrules-policy.yaml
-```
-
-Verify that the generated `PlacementBinding` contains:
+The generated `PlacementBinding` references the existing Placement:
 
 ```yaml
 placementRef:
@@ -400,260 +395,198 @@ placementRef:
 
 ---
 
-# 10. Apply the Policy to ACM Hub
+# 8. Validate the Generated Policy
+
+Before applying the generated policy to the Hub, perform a server-side dry run:
+
+```bash
+oc apply \
+  --dry-run=server \
+  -f generated/monitoring-policy.yaml
+```
+
+If there are no validation errors, continue with deployment.
+
+---
+
+# 9. Apply the Generated Policy to the ACM Hub
 
 Apply the generated policy:
 
 ```bash
-oc apply -f generated/custom-alertingrules-policy.yaml
+oc apply \
+  -f generated/monitoring-policy.yaml
 ```
 
-Verify:
+Verify the policy:
 
 ```bash
-oc get policy -n ocp-policies
+oc get policy -n policies-developer
 ```
 
-Check the policy:
+Check the policy status:
 
 ```bash
-oc get policy custom-alertingrules \
-  -n ocp-policies \
-  -o yaml
-```
-
-Check the PlacementBinding:
-
-```bash
-oc get placementbinding -n ocp-policies
+oc describe policy custom-alertingrules \
+  -n policies-developer
 ```
 
 ---
 
-# 11. Verify Policy Status
+# 10. Verify Placement Binding
 
-Check policy compliance:
+Check the PlacementBinding:
 
 ```bash
-oc get policy -n ocp-policies
+oc get placementbinding \
+  -n policies-developer
 ```
 
-Example:
+Verify that it references:
 
 ```text
-NAME                    REMEDIATION ACTION   COMPLIANCE STATE
-custom-alertingrules    inform               Compliant
+policy-namespace-placement
 ```
 
-For detailed information:
+---
 
-```bash
-oc describe policy custom-alertingrules -n ocp-policies
+# 11. Policy Distribution
+
+ACM uses the Placement and PlacementBinding to determine which managed clusters receive the policy.
+
+The resulting flow is:
+
+```text
+ACM Hub
+   │
+   ▼
+Policy
+   │
+   ▼
+PlacementBinding
+   │
+   ▼
+policy-namespace-placement
+   │
+   ▼
+ManagedClusterSet
+   │
+   ▼
+Selected Managed Clusters
 ```
 
 ---
 
 # 12. Verify on the Managed Cluster
 
-Once ACM distributes the policy, check the managed cluster.
+Log in to a selected managed cluster and verify that the `AlertingRule` was created.
+
+```bash
+oc get alertingrule \
+  -n openshift-monitoring
+```
 
 For example:
 
 ```bash
-oc get alertingrule -n openshift-monitoring
+oc get alertingrule \
+  psa-high-node-cpu-usage-alert \
+  -n openshift-monitoring
 ```
 
-Verify the alert:
+Verify the generated ConfigurationPolicy from the managed cluster:
 
 ```bash
-oc get alertingrule psa-node-filesystem-high-usage \
-  -n openshift-monitoring \
-  -o yaml
+oc get configurationpolicy -A
 ```
 
-You should see:
+Check its status:
 
-```yaml
-metadata:
-  name: psa-node-filesystem-high-usage
-```
-
-and the corresponding Prometheus rule.
-
----
-
-# 13. Policy Lifecycle
-
-The overall workflow is:
-
-```text
-Kubernetes Manifest
-        │
-        ▼
-manifests/
-        │
-        ▼
-PolicyGenerator template
-        │
-        ▼
-PolicyGenerator CLI
-        │
-        ▼
-Generated ACM Policy
-        │
-        ├── Policy
-        │
-        └── PlacementBinding
-                │
-                ▼
-     Existing ACM Placement
-                │
-                ▼
-        Managed Clusters
-                │
-                ▼
-      ConfigurationPolicy
-                │
-                ▼
-       Kubernetes Object
+```bash
+oc describe configurationpolicy \
+  custom-alertingrules \
+  -n <managed-cluster-policy-namespace>
 ```
 
 ---
 
-# 14. Adding a New Policy Scenario
+# 13. Final Runtime Flow
 
-For a new requirement, follow these steps.
-
-### Step 1 — Create the Kubernetes manifest
-
-Example:
+The complete process is:
 
 ```text
-manifests/security/
-└── example.yaml
+                    FIRST-TIME ACM SETUP
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │   ACM Hub Login  │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    Bind Policy Namespace
+                             │
+                             ▼
+                    ManagedClusterSet
+                             │
+                             ▼
+                    Existing Placement
+                             │
+                             │
+                    REPEATABLE WORKFLOW
+                             │
+                             ▼
+                       Git Repository
+                             │
+                  ┌──────────┴──────────┐
+                  ▼                     ▼
+             Kubernetes            PolicyGenerator
+             Manifests              template.yaml
+                  │                     │
+                  └──────────┬──────────┘
+                             ▼
+                    PolicyGenerator CLI
+                             │
+                             ▼
+                    Generated ACM Policy
+                             │
+                             ▼
+                         oc apply
+                             │
+                             ▼
+                         ACM Hub
+                             │
+                    ┌────────┴────────┐
+                    ▼                 ▼
+                  Policy      PlacementBinding
+                                      │
+                                      ▼
+                              Existing Placement
+                                      │
+                                      ▼
+                              ManagedClusterSet
+                                      │
+                                      ▼
+                              Managed Clusters
+                                      │
+                                      ▼
+                            ConfigurationPolicy
+                                      │
+                                      ▼
+                                 AlertingRule
+                                      │
+                                      ▼
+                           OpenShift Monitoring
+                                      │
+                              ┌───────┴───────┐
+                              ▼               ▼
+                          Prometheus     Alertmanager
+                              │               │
+                              └───────┬───────┘
+                                      ▼
+                              Alert / Notification
 ```
 
-### Step 2 — Test the manifest directly
 
-```bash
-oc apply --dry-run=server -f manifests/security/example.yaml
 ```
-
-### Step 3 — Add the manifest path to PolicyGenerator
-
-```yaml
-policies:
-  - name: security-policy
-    description: Security configuration policy
-    manifests:
-      - path: ../manifests/security/
 ```
-
-### Step 4 — Generate
-
-```bash
-./PolicyGenerator policygen/template.yaml \
-  > generated/security-policy.yaml
-```
-
-### Step 5 — Validate
-
-```bash
-oc apply --dry-run=server \
-  -f generated/security-policy.yaml
-```
-
-### Step 6 — Apply
-
-```bash
-oc apply -f generated/security-policy.yaml
-```
-
-### Step 7 — Verify
-
-```bash
-oc get policy -n ocp-policies
-```
-
----
-
-# 15. Recommended Repository Model
-
-For multiple policy types, keep **manifests and policy generation configuration separate**:
-
-```text
-acm-policies/
-│
-├── policygen/
-│   ├── monitoring.yaml
-│   ├── security.yaml
-│   ├── storage.yaml
-│   └── operators.yaml
-│
-├── manifests/
-│   ├── monitoring/
-│   │   ├── node-cpu.yaml
-│   │   ├── node-memory.yaml
-│   │   ├── node-filesystem.yaml
-│   │   └── pvc-usage.yaml
-│   │
-│   ├── security/
-│   │   └── ...
-│   │
-│   ├── storage/
-│   │   └── ...
-│   │
-│   └── operators/
-│       └── ...
-│
-└── generated/
-    ├── monitoring-policy.yaml
-    ├── security-policy.yaml
-    ├── storage-policy.yaml
-    └── operators-policy.yaml
-```
-
-This makes it easy to add new policy scenarios without modifying existing manifests.
-
----
-
-# 16. Important Configuration
-
-For Prometheus/AlertingRule manifests containing:
-
-```text
-{{ $labels.instance }}
-{{ $labels.namespace }}
-{{ $labels.device }}
-{{ $value }}
-```
-
-keep this in the PolicyGenerator:
-
-```yaml
-configurationPolicyAnnotations:
-  policy.open-cluster-management.io/disable-templates: "true"
-```
-
-Otherwise ACM may try to process the Prometheus variables as ACM policy templates.
-
-For your existing setup, the important part of the generator is therefore:
-
-```yaml
-policyDefaults:
-  namespace: ocp-policies
-
-  severity: low
-  remediationAction: inform
-  complianceType: musthave
-  disabled: false
-
-  configurationPolicyAnnotations:
-    policy.open-cluster-management.io/disable-templates: "true"
-
-  placement:
-    placementName: policy-namespace-placement
-```
-
-This is the core pattern you were using in January, and **yes, your approach is conceptually correct**: keep the AlertingRule as a normal manifest, let PolicyGenerator wrap it into a ConfigurationPolicy, reuse the existing ACM Placement, and apply the generated Policy/PlacementBinding to the Hub.
 
